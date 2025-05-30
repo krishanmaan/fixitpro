@@ -65,8 +65,18 @@ class BookingProvider with ChangeNotifier {
       final hasFirebaseAccess = await _checkFirebasePermissions();
 
       if (hasFirebaseAccess) {
-        // Get all bookings instead of filtering by user ID
-        final bookingsSnapshot = await _firestore.collection('bookings').get();
+        final currentUserId = _auth.currentUser?.uid;
+        if (currentUserId == null) {
+          _userBookings = [];
+          return;
+        }
+
+        // Get only current user's bookings by filtering with userId
+        final bookingsSnapshot = await _firestore
+            .collection('bookings')
+            .where('userId', isEqualTo: currentUserId)
+            .orderBy('createdAt', descending: true)
+            .get();
 
         if (bookingsSnapshot.docs.isNotEmpty) {
           _userBookings =
@@ -189,9 +199,12 @@ class BookingProvider with ChangeNotifier {
     List<booking_models.BookingModel> bookings,
   ) async {
     try {
+      final currentUserId = _auth.currentUser?.uid;
+      if (currentUserId == null) return;
+      
       final prefs = await SharedPreferences.getInstance();
       final bookingsJson = bookings.map((booking) => booking.toMap()).toList();
-      await prefs.setString('user_bookings', jsonEncode(bookingsJson));
+      await prefs.setString('user_bookings_$currentUserId', jsonEncode(bookingsJson));
     } catch (e) {
       debugPrint('Error saving bookings to local storage: $e');
     }
@@ -201,20 +214,26 @@ class BookingProvider with ChangeNotifier {
   Future<List<booking_models.BookingModel>>
   _loadBookingsFromLocalStorage() async {
     try {
+      final currentUserId = _auth.currentUser?.uid;
+      if (currentUserId == null) return [];
+      
       final prefs = await SharedPreferences.getInstance();
-      final bookingsJson = prefs.getString('user_bookings');
+      final bookingsJson = prefs.getString('user_bookings_$currentUserId');
       if (bookingsJson == null || bookingsJson.isEmpty) {
         return [];
       }
 
       final bookingsData = jsonDecode(bookingsJson) as List;
-      return bookingsData
+      final bookings = bookingsData
           .map(
             (data) => booking_models.BookingModel.fromMap(
               data as Map<String, dynamic>,
             ),
           )
           .toList();
+          
+      // Additional filter to ensure only current user's bookings are loaded
+      return bookings.where((booking) => booking.userId == currentUserId).toList();
     } catch (e) {
       debugPrint('Error loading bookings from local storage: $e');
       return [];

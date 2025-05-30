@@ -60,8 +60,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
         return;
       }
 
-      // Load all bookings instead of just user bookings
-      await bookingProvider.loadAllBookings();
+      // Load only current user's bookings
+      await bookingProvider.loadUserBookings();
 
       setState(() {
         _isLoading = false;
@@ -144,10 +144,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
   @override
   Widget build(BuildContext context) {
     final bookingProvider = Provider.of<BookingProvider>(context);
-    final userBookings = bookingProvider.allBookings;
+    final userBookings = bookingProvider.userBookings;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('All Bookings')),
+      appBar: AppBar(title: const Text('My Bookings')),
       body: Column(
         children: [
           // Error message
