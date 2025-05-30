@@ -78,7 +78,10 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
         listen: false,
       );
 
-      await bookingProvider.rescheduleBooking(booking.id, _selectedTimeSlot!);
+      await bookingProvider.rescheduleBooking(
+        booking.id,
+        _selectedTimeSlot!,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

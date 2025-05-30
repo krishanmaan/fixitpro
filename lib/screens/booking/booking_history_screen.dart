@@ -60,8 +60,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
         return;
       }
 
-      // Load only current user's bookings
-      await bookingProvider.loadUserBookings();
+      // Load all bookings instead of just user bookings
+      await bookingProvider.loadAllBookings();
 
       setState(() {
         _isLoading = false;
@@ -119,8 +119,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
       Navigator.of(context)
           .push(
             MaterialPageRoute(
-              builder: (context) => AddReviewScreen(),
-              settings: RouteSettings(arguments: booking),
+              builder: (context) => AddReviewScreen(bookingId: booking.id),
             ),
           )
           .then((_) {
@@ -144,10 +143,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
   @override
   Widget build(BuildContext context) {
     final bookingProvider = Provider.of<BookingProvider>(context);
-    final userBookings = bookingProvider.userBookings;
+    final userBookings = bookingProvider.allBookings;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Bookings')),
+      appBar: AppBar(title: const Text('All Bookings')),
       body: Column(
         children: [
           // Error message

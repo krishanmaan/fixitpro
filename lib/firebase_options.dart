@@ -34,6 +34,7 @@ class DefaultFirebaseOptions {
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: "AIzaSyCGDDyibFhz4KWW9OFEUgikPL1JWuo2Zj4",
     authDomain: "ploter-3bc40.firebaseapp.com",
+    databaseURL: "https://ploter-3bc40-default-rtdb.firebaseio.com",
     projectId: "ploter-3bc40",
     storageBucket: "ploter-3bc40.firebasestorage.app",
     messagingSenderId: "479945257157",
@@ -46,6 +47,7 @@ class DefaultFirebaseOptions {
     appId: "1:479945257157:web:1faf202b879bef1298c0ac",
     messagingSenderId: '479945257157',
     projectId: 'ploter-3bc40',
+    databaseURL: "https://ploter-3bc40-default-rtdb.firebaseio.com",
     storageBucket: 'ploter-3bc40.firebasestorage.app',
   );
 
@@ -54,6 +56,7 @@ class DefaultFirebaseOptions {
     appId: '1:479945257157:ios:1faf202b879bef1298c0ac',
     messagingSenderId: '479945257157',
     projectId: 'ploter-3bc40',
+    databaseURL: "https://ploter-3bc40-default-rtdb.firebaseio.com",
     storageBucket: 'ploter-3bc40.firebasestorage.app',
     iosClientId:
         '479945257157-v9j162r12345vbp1fvs0c0d1tglph3i8.apps.googleusercontent.com',
@@ -65,6 +68,7 @@ class DefaultFirebaseOptions {
     appId: '1:479945257157:ios:1faf202b879bef1298c0ac',
     messagingSenderId: '479945257157',
     projectId: 'ploter-3bc40',
+    databaseURL: "https://ploter-3bc40-default-rtdb.firebaseio.com",
     storageBucket: 'ploter-3bc40.firebasestorage.app',
     iosClientId:
         '479945257157-v9j162r12345vbp1fvs0c0d1tglph3i8.apps.googleusercontent.com',
@@ -76,6 +80,7 @@ class DefaultFirebaseOptions {
     appId: '1:479945257157:web:1faf202b879bef1298c0ac',
     messagingSenderId: '479945257157',
     projectId: 'ploter-3bc40',
+    databaseURL: "https://ploter-3bc40-default-rtdb.firebaseio.com",
     storageBucket: 'ploter-3bc40.firebasestorage.app',
     measurementId: 'G-MWT2KKY28H',
   );

@@ -9,6 +9,8 @@ import 'package:fixitpro/services/payment_service.dart';
 import 'package:fixitpro/screens/booking/booking_success_screen.dart';
 import 'package:fixitpro/widgets/custom_button.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
+import 'package:fixitpro/models/service_model.dart' as service_models;
 
 class PaymentScreen extends StatefulWidget {
   static const String routeName = '/payment';
@@ -691,75 +693,45 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (result['success']) {
         // Payment successful, now create the booking
         final booking = await bookingProvider.createBooking(
-          userId: widget.pendingBooking.userId,
-          service: serviceProvider.selectedService!,
-          tierSelected: widget.pendingBooking.tierSelected,
-          materialDesignId: widget.pendingBooking.materialDesignId,
-          area: widget.pendingBooking.area,
-          totalPrice: widget.pendingBooking.totalPrice,
-          address: widget.pendingBooking.address,
-          timeSlot: widget.pendingBooking.timeSlot,
-          visitCharge: widget.pendingBooking.visitCharge,
+          BookingModel(
+            id: const Uuid().v4(),
+            userId: authProvider.user!.id,
+            serviceId: serviceProvider.selectedService!.id,
+            serviceName: serviceProvider.selectedService!.title,
+            serviceImage: serviceProvider.selectedService!.imageUrl,
+            tierSelected: _convertTierType(serviceProvider.selectedTier),
+            area: serviceProvider.area,
+            totalPrice: serviceProvider.calculateTotalPrice(),
+            status: BookingStatus.pending,
+            address: bookingProvider.selectedAddress!,
+            timeSlot: bookingProvider.selectedTimeSlot!,
+            createdAt: DateTime.now(),
+            materialDesignId: serviceProvider.selectedDesign?.id,
+            materialDesignName: serviceProvider.selectedDesign?.name,
+            materialPrice: serviceProvider.selectedDesign?.pricePerUnit,
+            visitCharge: serviceProvider.getSelectedTierPricing()?.visitCharge,
+          ),
         );
 
-        if (booking != null) {
-          // Update booking status to confirmed
-          final success = await bookingProvider.updateBookingStatus(
-            booking.id,
-            BookingStatus.confirmed,
+        if (booking) {
+          // Show success message and navigate back
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Booking created successfully!'),
+              backgroundColor: Colors.green,
+            ),
           );
-
-          if (success) {
-            if (!mounted) return;
-
-            // Show a success message before navigating
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Visit charge payment successful! Your booking is confirmed.',
-                ),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-
-            // Add a short delay for the snackbar to be visible
-            await Future.delayed(const Duration(milliseconds: 500));
-
-            // Create a confirmed booking model to pass to the success screen
-            final confirmedBooking = booking.copyWith(
-              status: BookingStatus.confirmed,
-            );
-
-            if (!mounted) return;
-
-            // Navigate directly with MaterialPageRoute instead of using named route
-            // This ensures the arguments are properly passed
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(
-                builder:
-                    (context) =>
-                        BookingSuccessScreen(booking: confirmedBooking),
-              ),
-              (route) => false, // Remove all previous routes from stack
-            );
-          } else {
-            // Something went wrong updating booking status
-            setState(() {
-              _isProcessing = false;
-              _errorMessage =
-                  'Booking created but status could not be updated. Please check your bookings.';
-            });
-          }
+          Navigator.of(context).pop(true);
         } else {
-          // Something went wrong creating booking
-          setState(() {
-            _isProcessing = false;
-            _errorMessage =
-                bookingProvider.error ??
-                'Payment successful but booking could not be created. Please try again.';
-          });
+          // Show error message
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(bookingProvider.error ?? 'Failed to create booking'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       } else {
         // Payment failed
@@ -774,6 +746,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
         _isProcessing = false;
         _errorMessage = 'An error occurred: ${e.toString()}';
       });
+    }
+  }
+
+  // Helper method to convert service TierType to booking TierType
+  TierType _convertTierType(service_models.TierType serviceTier) {
+    switch (serviceTier) {
+      case service_models.TierType.basic:
+        return TierType.basic;
+      case service_models.TierType.standard:
+        return TierType.standard;
+      case service_models.TierType.premium:
+        return TierType.premium;
+      default:
+        return TierType.basic;
     }
   }
 }

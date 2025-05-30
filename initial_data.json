@@ -1,0 +1,165 @@
+{
+  "app_settings": {
+    "info": {
+      "name": "FixitPro",
+      "version": "1.0.0",
+      "maintenance_mode": false
+    }
+  },
+  "serviceTypes": {
+    "repair": {
+      "id": "repair",
+      "name": "repair",
+      "displayName": "Repair",
+      "description": "Repair services",
+      "icon": "build",
+      "includesMaterial": false
+    },
+    "installation": {
+      "id": "installation",
+      "name": "installation",
+      "displayName": "Installation",
+      "description": "Installation services",
+      "icon": "settings",
+      "includesMaterial": false
+    },
+    "maintenance": {
+      "id": "maintenance",
+      "name": "maintenance",
+      "displayName": "Maintenance",
+      "description": "Maintenance services",
+      "icon": "handyman",
+      "includesMaterial": false
+    }
+  },
+  "services": {
+    "service1": {
+      "id": "service1",
+      "title": "AC Repair",
+      "description": "Professional AC repair service with expert technicians. We diagnose and fix all types of AC problems.",
+      "type": {
+        "id": "repair",
+        "name": "repair",
+        "displayName": "Repair",
+        "description": "Repair services",
+        "icon": "build",
+        "includesMaterial": false
+      },
+      "imageUrl": "https://placehold.co/600x400/orange/white?text=AC+Repair",
+      "includesMaterial": false,
+      "categoryId": "default",
+      "createdAt": 1748607335833,
+      "unit": "sqft",
+      "tiers": [
+        {
+          "id": "basic1",
+          "serviceId": "service1",
+          "tier": "basic",
+          "price": 500.0,
+          "warrantyMonths": 1,
+          "visitCharge": 100.0,
+          "features": ["Basic diagnostics", "Minor repairs", "1 month warranty"]
+        },
+        {
+          "id": "standard1",
+          "serviceId": "service1",
+          "tier": "standard",
+          "price": 1000.0,
+          "warrantyMonths": 3,
+          "visitCharge": 0.0,
+          "features": ["Full diagnostics", "Major repairs", "3 months warranty", "Free visit"]
+        }
+      ]
+    },
+    "service2": {
+      "id": "service2",
+      "title": "AC Installation",
+      "description": "Professional AC installation service. We handle all types and brands of air conditioners.",
+      "type": {
+        "id": "installation",
+        "name": "installation",
+        "displayName": "Installation",
+        "description": "Installation services",
+        "icon": "settings",
+        "includesMaterial": true
+      },
+      "imageUrl": "https://placehold.co/600x400/orange/white?text=AC+Installation",
+      "includesMaterial": true,
+      "categoryId": "default",
+      "createdAt": 1748607335834,
+      "unit": "sqft",
+      "tiers": [
+        {
+          "id": "basic2",
+          "serviceId": "service2",
+          "tier": "basic",
+          "price": 1500.0,
+          "warrantyMonths": 6,
+          "visitCharge": 200.0,
+          "features": ["Basic installation", "Standard mounting", "6 months warranty"]
+        },
+        {
+          "id": "standard2",
+          "serviceId": "service2",
+          "tier": "standard",
+          "price": 2500.0,
+          "warrantyMonths": 12,
+          "visitCharge": 0.0,
+          "features": ["Premium installation", "Custom mounting", "1 year warranty", "Free visit"]
+        }
+      ]
+    },
+    "service3": {
+      "id": "service3",
+      "title": "AC Maintenance",
+      "description": "Regular AC maintenance service to keep your unit running efficiently.",
+      "type": {
+        "id": "maintenance",
+        "name": "maintenance",
+        "displayName": "Maintenance",
+        "description": "Maintenance services",
+        "icon": "handyman",
+        "includesMaterial": false
+      },
+      "imageUrl": "https://placehold.co/600x400/orange/white?text=AC+Maintenance",
+      "includesMaterial": false,
+      "categoryId": "default",
+      "createdAt": 1748607335835,
+      "unit": "sqft",
+      "tiers": [
+        {
+          "id": "basic3",
+          "serviceId": "service3",
+          "tier": "basic",
+          "price": 300.0,
+          "warrantyMonths": 1,
+          "visitCharge": 100.0,
+          "features": ["Basic cleaning", "Filter check", "Performance test"]
+        },
+        {
+          "id": "standard3",
+          "serviceId": "service3",
+          "tier": "standard",
+          "price": 600.0,
+          "warrantyMonths": 3,
+          "visitCharge": 0.0,
+          "features": ["Deep cleaning", "All parts check", "Performance optimization", "Free visit"]
+        }
+      ]
+    }
+  },
+  "timeSlots": {
+    "slot1": {
+      "date": "2024-03-20",
+      "startTime": "09:00",
+      "endTime": "11:00",
+      "status": "available"
+    },
+    "slot2": {
+      "date": "2024-03-20",
+      "startTime": "11:00",
+      "endTime": "13:00",
+      "status": "available"
+    }
+  }
+} 

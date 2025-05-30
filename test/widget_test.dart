@@ -5,67 +5,60 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter/material.dart';
+
 import 'package:flutter_test/flutter_test.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_database/firebase_database.dart';
 
-import 'package:fixitpro/main.dart';
+
 import 'package:fixitpro/services/firebase_service.dart';
 import 'package:fixitpro/models/booking_model.dart';
 
-// Mock FirebaseService for testing
+// Mock implementation of IFirebaseService for testing
 class MockFirebaseService implements IFirebaseService {
-  late FirebaseFirestore _firestore;
-  late FirebaseAuth _auth;
-  late FirebaseStorage _storage;
-  final bool _isConnected = true;
+  @override
+  FirebaseDatabase get database => throw UnimplementedError();
+
+  @override
+  FirebaseAuth get auth => throw UnimplementedError();
+
+  @override
+  FirebaseStorage get storage => throw UnimplementedError();
 
   @override
   bool get isOfflineMode => false;
 
   @override
-  Future<bool> initialize() async {
-    return true;
-  }
+  Future<void> initialize() async {}
 
   @override
-  Future<bool> checkConnectivity() async {
-    return _isConnected;
-  }
+  Future<bool> checkConnectivity() async => true;
 
   @override
-  FirebaseFirestore get firestore => _firestore;
+  Future<bool> checkCollection(String path) async => true;
 
   @override
-  FirebaseAuth get auth => _auth;
+  Future<bool> checkAdminAccess() async => true;
 
   @override
-  FirebaseStorage get storage => _storage;
+  Future<bool> isTimeSlotAvailable(String slotId) async => true;
 
   @override
-  Future<bool> checkCollection(String collection) async {
-    return true;
-  }
+  Future<bool> markTimeSlotAsBooked(String slotId, String bookingId) async => true;
 
   @override
-  Future<bool> checkAdminAccess() async {
-    return false;
-  }
+  Future<List<BookingModel>> loadBookings(String userId) async => [];
 
   @override
-  Future<bool> isTimeSlotAvailable(String slotId) async {
-    return true;
-  }
+  Future<List<BookingModel>> getTimeSlotsForDate(DateTime date) async => [];
 
   @override
-  Future<bool> markTimeSlotAsBooked(String slotId, String bookingId) async {
-    return true;
-  }
+  void setOfflineMode(bool isOffline) {}
 
   @override
-  Future<T> safeFirestoreOperation<T>(
+  Future<T> safeRealtimeDatabaseOperation<T>(
     Future<T> Function() operation,
     T defaultValue,
   ) async {
@@ -75,60 +68,32 @@ class MockFirebaseService implements IFirebaseService {
       return defaultValue;
     }
   }
-
-  @override
-  void setOfflineMode(bool isOffline) {
-    // Mock implementation - do nothing
-  }
-
-  Future<DocumentReference> saveBooking(BookingModel booking) async {
-    return _firestore.collection('bookings').doc('mock-id');
-  }
-
-  Future<void> updateBooking(BookingModel booking) async {
-    // Mock implementation
-    return;
-  }
-
-  Future<void> cancelBooking(String bookingId) async {
-    // Mock implementation
-    return;
-  }
-
-  @override
-  Future<List<BookingModel>> loadBookings(String userId) async {
-    return []; // Mock implementation - empty list
-  }
-
-  Future<Map<String, dynamic>> getServiceProviderById(String id) async {
-    return {
-      'id': 'provider-1',
-      'name': 'Test Provider',
-      'specialization': 'All Services',
-    };
-  }
 }
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Create a mock FirebaseService
-    final mockFirebaseService = MockFirebaseService();
+  group('Firebase Service Tests', () {
+    late MockFirebaseService mockService;
 
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(
-      MyApp(firebaseInitialized: true, firebaseService: mockFirebaseService),
-    );
+    setUp(() {
+      mockService = MockFirebaseService();
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('Mock service should initialize without errors', () async {
+      await mockService.initialize();
+      expect(mockService.isOfflineMode, false);
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('Safe database operation should return default value on error', () async {
+      final result = await mockService.safeRealtimeDatabaseOperation<int>(
+        () async => throw Exception('Test error'),
+        -1,
+      );
+      expect(result, -1);
+    });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('Check admin access should return true in mock', () async {
+      final result = await mockService.checkAdminAccess();
+      expect(result, true);
+    });
   });
 }

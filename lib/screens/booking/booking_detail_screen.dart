@@ -714,8 +714,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       Navigator.of(context)
           .push(
             MaterialPageRoute(
-              builder: (context) => AddReviewScreen(),
-              settings: RouteSettings(arguments: booking),
+              builder: (context) => AddReviewScreen(bookingId: booking.id),
             ),
           )
           .then((_) {

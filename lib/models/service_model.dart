@@ -135,86 +135,12 @@ class ServiceModel {
     );
   }
 
-  factory ServiceModel.fromJson(Map<String, dynamic> json) {
-    // Parse tiers
-    List<TierPricing> tiers = [];
-    if (json['tiers'] != null) {
-      tiers = List<TierPricing>.from(
-        json['tiers'].map((tier) => TierPricing.fromJson(tier)),
-      );
-    }
-
-    // Parse designs if applicable
-    List<MaterialDesign> designs = [];
-    if (json['designs'] != null) {
-      designs = List<MaterialDesign>.from(
-        json['designs'].map((design) => MaterialDesign.fromJson(design)),
-      );
-    }
-
-    // Parse service type from string to ServiceTypeModel
-    ServiceTypeModel serviceType;
-    try {
-      // First check if it's a new style service type (object)
-      if (json['type'] is Map<String, dynamic>) {
-        serviceType = ServiceTypeModel.fromJson(
-          json['type'] as Map<String, dynamic>,
-        );
-      } else if (json['type'] is String) {
-        // It's an old style service type (string)
-        final typeStr = json['type'] as String;
-        switch (typeStr) {
-          case 'repair':
-            serviceType = ServiceTypeModel.repair;
-            break;
-          case 'installation':
-            serviceType = ServiceTypeModel.installation;
-            break;
-          case 'installationWithMaterial':
-            serviceType = ServiceTypeModel.installationWithMaterial;
-            break;
-          default:
-            // Try to find the service type by name in the defaults
-            final matchingDefault = ServiceTypeModel.defaults.firstWhere(
-              (type) => type.name == typeStr,
-              orElse: () => ServiceTypeModel.repair,
-            );
-            serviceType = matchingDefault;
-        }
-      } else {
-        // Default to repair if type is missing or in unexpected format
-        serviceType = ServiceTypeModel.repair;
-      }
-    } catch (e) {
-      debugPrint('Error parsing service type: $e');
-      // Default to repair if there's an error
-      serviceType = ServiceTypeModel.repair;
-    }
-
-    return ServiceModel(
-      id: json['id'],
-      title: json['title'],
-      description: json['description'],
-      type: serviceType,
-      unit: MeasurementUnit.values.firstWhere(
-        (e) => e.toString() == 'MeasurementUnit.${json['unit']}',
-        orElse: () => MeasurementUnit.sqft,
-      ),
-      includesMaterial: json['includesMaterial'] ?? false,
-      tiers: tiers,
-      designs: designs,
-      imageUrl: json['imageUrl'] ?? '',
-      categoryId: json['categoryId'] ?? '',
-    );
-  }
-
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'title': title,
       'description': description,
-      'type':
-          type.toJson(), // Store the full service type object instead of just the name
+      'type': type.toJson(),
       'unit': unit.toString().split('.').last,
       'includesMaterial': includesMaterial,
       'tiers': tiers.map((tier) => tier.toJson()).toList(),
@@ -222,6 +148,102 @@ class ServiceModel {
       'imageUrl': imageUrl,
       'categoryId': categoryId,
     };
+  }
+
+  factory ServiceModel.fromJson(Map<String, dynamic> json) {
+    // Parse tiers
+    List<TierPricing> tiers = [];
+    if (json['tiers'] != null) {
+      if (json['tiers'] is List) {
+        tiers = List<TierPricing>.from(
+          (json['tiers'] as List).map((tier) => TierPricing.fromJson(
+            tier is Map ? Map<String, dynamic>.from(tier) : tier,
+          )),
+        );
+      } else if (json['tiers'] is Map) {
+        tiers = (json['tiers'] as Map).entries.map((entry) {
+          final tierData = entry.value;
+          return TierPricing.fromJson(
+            tierData is Map ? Map<String, dynamic>.from(tierData) : tierData,
+          );
+        }).toList();
+      }
+    }
+
+    // Parse designs if applicable
+    List<MaterialDesign> designs = [];
+    if (json['designs'] != null) {
+      if (json['designs'] is List) {
+        designs = List<MaterialDesign>.from(
+          (json['designs'] as List).map((design) => MaterialDesign.fromJson(
+            design is Map ? Map<String, dynamic>.from(design) : design,
+          )),
+        );
+      } else if (json['designs'] is Map) {
+        designs = (json['designs'] as Map).entries.map((entry) {
+          final designData = entry.value;
+          return MaterialDesign.fromJson(
+            designData is Map ? Map<String, dynamic>.from(designData) : designData,
+          );
+        }).toList();
+      }
+    }
+
+    // Parse service type
+    ServiceTypeModel serviceType;
+    try {
+      if (json['type'] is Map) {
+        // New style: type is a full object
+        serviceType = ServiceTypeModel.fromJson(
+          Map<String, dynamic>.from(json['type'] as Map),
+        );
+      } else if (json['type'] is String) {
+        // Old style: type is a string ID
+        final typeStr = json['type'] as String;
+        serviceType = ServiceTypeModel(
+          id: typeStr,
+          name: typeStr,
+          displayName: typeStr.substring(0, 1).toUpperCase() + typeStr.substring(1),
+          includesMaterial: typeStr == 'installationWithMaterial',
+        );
+      } else {
+        // Default to repair if type is missing or invalid
+        serviceType = ServiceTypeModel.repair;
+      }
+    } catch (e) {
+      debugPrint('Error parsing service type: $e');
+      serviceType = ServiceTypeModel.repair;
+    }
+
+    // Parse measurement unit
+    MeasurementUnit unit;
+    try {
+      if (json['unit'] is String) {
+        final unitStr = json['unit'] as String;
+        unit = MeasurementUnit.values.firstWhere(
+          (e) => e.toString().split('.').last.toLowerCase() == unitStr.toLowerCase(),
+          orElse: () => MeasurementUnit.sqft,
+        );
+      } else {
+        unit = MeasurementUnit.sqft;
+      }
+    } catch (e) {
+      debugPrint('Error parsing measurement unit: $e');
+      unit = MeasurementUnit.sqft;
+    }
+
+    return ServiceModel(
+      id: json['id'] ?? '',
+      title: json['title'] ?? '',
+      description: json['description'] ?? '',
+      type: serviceType,
+      unit: unit,
+      includesMaterial: json['includesMaterial'] ?? false,
+      tiers: tiers,
+      designs: designs,
+      imageUrl: json['imageUrl'] ?? '',
+      categoryId: json['categoryId'] ?? '',
+    );
   }
 }
 

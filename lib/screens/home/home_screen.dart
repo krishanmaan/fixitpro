@@ -58,15 +58,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Get service types that have services
       _serviceTypes = serviceProvider.getServiceTypesWithServices();
+
+      // Update filtered services
+      _filteredServices = serviceProvider.services;
     } catch (e) {
-      // Log error but continue with whatever services might be in memory
-      debugPrint('Error refreshing services: $e');
+      debugPrint('Error loading services: $e');
+      // Show error snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading services: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
 
-    // Always update UI with whatever services are available
     if (mounted) {
       setState(() {
-        _filteredServices = serviceProvider.services;
         _isLoading = false;
       });
     }
@@ -91,11 +100,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (mounted) {
       setState(() {
-        _filteredServices =
-            serviceProvider.services.where((service) {
-              return service.title.toLowerCase().contains(lowercaseQuery) ||
-                  service.description.toLowerCase().contains(lowercaseQuery);
-            }).toList();
+        _filteredServices = serviceProvider.services.where((service) {
+          return service.title.toLowerCase().contains(lowercaseQuery) ||
+              service.description.toLowerCase().contains(lowercaseQuery);
+        }).toList();
       });
     }
   }
@@ -125,6 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
+    final serviceProvider = Provider.of<ServiceProvider>(context);
     final user = authProvider.user;
 
     // Get device size for responsiveness
@@ -135,129 +144,123 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppConstants.backgroundColor,
       appBar: const UserDashboardAppBar(),
       body: SafeArea(
-        child:
-            _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : RefreshIndicator(
-                  onRefresh: _loadServices,
-                  child: CustomScrollView(
-                    slivers: [
-                      // Greeting and Search
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: AppConstants.getResponsivePadding(context),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Hello, ${user?.name.split(' ').first ?? 'User'}!',
-                                style: AppConstants.getResponsiveHeadingStyle(
-                                  context,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'What service do you need today?',
-                                style: AppConstants.getResponsiveSmallTextStyle(
-                                  context,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              SearchTextField(
-                                controller: _searchController,
-                                hint: 'Search for services...',
-                                onClear: () {
-                                  _searchController.clear();
-                                  _filterServices('');
-                                },
-                              ),
-                            ],
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : serviceProvider.error != null
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red.shade400,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          serviceProvider.error!,
+                          style: TextStyle(
+                            color: Colors.red.shade700,
+                            fontSize: 16,
                           ),
                         ),
-                      ),
-
-                      // If user is searching, show search results
-                      if (_searchController.text.isNotEmpty) ...[
-                        _buildCategoryHeader(
-                          'Search Results (${_filteredServices.length})',
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _loadServices,
+                          child: const Text('Retry'),
                         ),
-                        _buildServicesList(_filteredServices),
                       ],
-
-                      // Otherwise show only service type cards
-                      if (_searchController.text.isEmpty) ...[
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadServices,
+                    child: CustomScrollView(
+                      slivers: [
+                        // Greeting and Search
                         SliverToBoxAdapter(
                           child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal:
-                                  AppConstants.getResponsivePadding(
-                                    context,
-                                  ).left,
-                              vertical: 8.0,
-                            ),
+                            padding: AppConstants.getResponsivePadding(context),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Service Categories',
-                                  style:
-                                      AppConstants.getResponsiveSubheadingStyle(
-                                        context,
-                                      ),
+                                  'Hello, ${user?.name.split(' ').first ?? 'User'}!',
+                                  style: AppConstants.getResponsiveHeadingStyle(
+                                    context,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'What service do you need today?',
+                                  style: AppConstants.getResponsiveSmallTextStyle(
+                                    context,
+                                  ),
                                 ),
                                 const SizedBox(height: 16),
-
-                                // Display service types in a grid layout
-                                GridView.count(
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  shrinkWrap: true,
-                                  crossAxisCount: isSmallScreen ? 1 : 2,
-                                  childAspectRatio: isSmallScreen ? 1.2 : 0.85,
-                                  crossAxisSpacing: isSmallScreen ? 8 : 16,
-                                  mainAxisSpacing: isSmallScreen ? 8 : 16,
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  children:
-                                      _serviceTypes.map((type) {
-                                        // Get icon and color based on service type
-                                        IconData icon;
-                                        Color color;
-
-                                        // Map service type to icon and color
-                                        if (type.id == 'repair') {
-                                          icon = Icons.build;
-                                          color = Colors.orange;
-                                        } else if (type.id == 'installation') {
-                                          icon = Icons.handyman;
-                                          color = Colors.blue;
-                                        } else if (type.id ==
-                                            'installationWithMaterial') {
-                                          icon = Icons.inventory;
-                                          color = Colors.green;
-                                        } else {
-                                          // Default for custom types
-                                          icon = Icons.miscellaneous_services;
-                                          color = Colors.purple;
-                                        }
-
-                                        return _buildServiceTypeCard(
-                                          type: type,
-                                          icon: icon,
-                                          color: color,
-                                          onTap:
-                                              () => _navigateToServicesByType(
-                                                type,
-                                              ),
-                                        );
-                                      }).toList(),
+                                SearchTextField(
+                                  controller: _searchController,
+                                  hint: 'Search for services...',
+                                  onClear: () {
+                                    _searchController.clear();
+                                    _filterServices('');
+                                  },
                                 ),
                               ],
                             ),
                           ),
                         ),
+
+                        // If user is searching, show search results
+                        if (_searchController.text.isNotEmpty) ...[
+                          _buildCategoryHeader(
+                            'Search Results (${_filteredServices.length})',
+                          ),
+                          _buildServicesList(_filteredServices),
+                        ],
+
+                        // Otherwise show service types and all services
+                        if (_searchController.text.isEmpty) ...[
+                          // Service Types Section
+                          _buildCategoryHeader('Service Types'),
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: AppConstants.getResponsivePadding(context).left,
+                              ),
+                              child: SizedBox(
+                                height: 140,
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: _serviceTypes.length,
+                                  itemBuilder: (context, index) {
+                                    final type = _serviceTypes[index];
+                                    return Padding(
+                                      padding: EdgeInsets.only(
+                                        right: index == _serviceTypes.length - 1 ? 0 : 16,
+                                      ),
+                                      child: SizedBox(
+                                        width: 120,
+                                        child: _buildServiceTypeCard(
+                                          type: type,
+                                          icon: Icons.build,
+                                          color: AppConstants.primaryColor,
+                                          onTap: () => _navigateToServicesByType(type),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // All Services Section
+                          _buildCategoryHeader('All Services'),
+                          _buildServicesList(serviceProvider.services),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
       ),
       bottomNavigationBar: const BottomNavBar(currentIndex: 1),
     );

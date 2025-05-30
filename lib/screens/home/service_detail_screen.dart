@@ -88,8 +88,8 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                   ),
     );
 
-    // Calculate total price based on area and selected options
-    final double totalPrice = serviceProvider.calculateTotalPrice(_areaValue);
+    // Calculate total price
+    final double totalPrice = serviceProvider.calculateTotalPrice();
 
     final hasDesigns = service.includesMaterial && service.designs.isNotEmpty;
 

@@ -1,23 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:fixitpro/models/user_model.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
+import 'package:fixitpro/models/user_model.dart';
 
 /// Service class that handles user authentication and management
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  GoogleSignIn? _googleSignIn;
-
-  // Initialize GoogleSignIn lazily to avoid initialization errors
-  GoogleSignIn get googleSignIn {
-    _googleSignIn ??= GoogleSignIn(
-      signInOption: SignInOption.standard,
-      scopes: ['email'],
-    );
-    return _googleSignIn!;
-  }
+  final FirebaseDatabase _database = FirebaseDatabase.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // Get current user
   User? get currentUser => _auth.currentUser;
@@ -45,7 +36,7 @@ class AuthService {
         // Update display name
         await user.updateDisplayName(name);
 
-        // Create user document in Firestore
+        // Create user document in Realtime Database
         UserModel newUser = UserModel(
           id: user.uid,
           name: name,
@@ -55,9 +46,8 @@ class AuthService {
           isAdmin: false,
         );
 
-        await _firestore
-            .collection('users')
-            .doc(user.uid)
+        await _database
+            .ref('users/${user.uid}')
             .set(newUser.toJson());
 
         return newUser;
@@ -94,15 +84,15 @@ class AuthService {
       User? user = result.user;
 
       if (user != null) {
-        // Get user data from Firestore
-        DocumentSnapshot userDoc =
-            await _firestore.collection('users').doc(user.uid).get();
+        // Get user data from Realtime Database
+        final snapshot = await _database.ref('users/${user.uid}').get();
 
-        if (userDoc.exists) {
-          return UserModel.fromJson(userDoc.data() as Map<String, dynamic>);
+        if (snapshot.exists) {
+          final userData = snapshot.value as Map<dynamic, dynamic>;
+          return UserModel.fromJson(Map<String, dynamic>.from(userData));
         } else {
           throw FirebaseException(
-            plugin: 'cloud_firestore',
+            plugin: 'firebase_database',
             code: 'not-found',
             message: 'User profile not found in database',
           );
@@ -129,18 +119,14 @@ class AuthService {
   /// Sign in with Google
   Future<UserModel> signInWithGoogle() async {
     try {
-      // Begin interactive sign in process
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      // Trigger the authentication flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
-        throw FirebaseException(
-          plugin: 'firebase_auth',
-          code: 'sign-in-cancelled',
-          message: 'Google sign in was cancelled',
-        );
+        throw 'Google sign in aborted';
       }
 
-      // Obtain auth details from the request
+      // Obtain the auth details from the request
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
@@ -151,82 +137,52 @@ class AuthService {
       );
 
       // Sign in to Firebase with the Google credential
-      UserCredential result = await _auth.signInWithCredential(credential);
-      User? user = result.user;
+      final userCredential = await _auth.signInWithCredential(credential);
 
-      if (user != null) {
-        // Check if user exists in Firestore
-        DocumentSnapshot userDoc =
-            await _firestore.collection('users').doc(user.uid).get();
-
-        if (userDoc.exists) {
-          // User exists, return user model
-          return UserModel.fromJson(userDoc.data() as Map<String, dynamic>);
-        } else {
-          // Create new user in Firestore
-          UserModel newUser = UserModel(
-            id: user.uid,
-            name: user.displayName ?? 'User',
-            email: user.email ?? '',
-            phone: user.phoneNumber ?? '',
-            photoUrl: user.photoURL,
-            savedAddresses: [],
-            isAdmin: false,
-          );
-
-          await _firestore
-              .collection('users')
-              .doc(user.uid)
-              .set(newUser.toJson());
-
-          return newUser;
-        }
-      } else {
-        throw FirebaseException(
-          plugin: 'firebase_auth',
-          code: 'sign-in-failed',
-          message: 'Google sign in failed',
-        );
+      if (userCredential.user == null) {
+        throw 'Failed to sign in with Google';
       }
-    } catch (e) {
-      // Handle debug-mode specific error fallback
-      if (kDebugMode && e.toString().contains('com.google.android.gms')) {
-        debugPrint('Using mock user for Google Sign-In in debug mode');
-        String mockUserId = 'google_mock_user_123';
 
-        // Create mock user model
-        UserModel mockUser = UserModel(
-          id: mockUserId,
-          name: 'Demo User',
-          email: 'demo@example.com',
-          phone: '1234567890',
-          photoUrl: 'https://ui-avatars.com/api/?name=Demo+User',
+      // Check if user exists in database
+      final userDoc = await _database.ref('users/${userCredential.user!.uid}').get();
+
+      if (!userDoc.exists) {
+        // Create new user document if it doesn't exist
+        final newUser = UserModel(
+          id: userCredential.user!.uid,
+          name: userCredential.user!.displayName ?? 'User',
+          email: userCredential.user!.email ?? '',
+          phone: userCredential.user!.phoneNumber ?? '',
           savedAddresses: [],
           isAdmin: false,
         );
 
-        return mockUser;
+        await _database.ref('users/${newUser.id}').set(newUser.toJson());
+        return newUser;
       }
 
-      if (e is FirebaseException) {
-        rethrow;
-      }
-
-      throw FirebaseException(
-        plugin: 'firebase_auth',
-        code: 'google-sign-in-failed',
-        message: e.toString(),
-      );
+      // Return existing user data
+      final userData = userDoc.value as Map<dynamic, dynamic>;
+      return UserModel.fromJson({
+        ...Map<String, dynamic>.from(userData),
+        'id': userCredential.user!.uid,
+      });
+    } catch (e) {
+      debugPrint('Error signing in with Google: $e');
+      rethrow;
     }
   }
 
   /// Sign out
   Future<void> signOut() async {
     try {
-      await googleSignIn.signOut();
-      await _auth.signOut();
+      await Future.wait([
+        _auth.signOut(),
+        _googleSignIn.signOut(),
+      ]);
     } catch (e) {
-      throw Exception('Error signing out: ${e.toString()}');
+      debugPrint('Error signing out: $e');
+      rethrow;
     }
   }
 
@@ -235,140 +191,148 @@ class AuthService {
     try {
       await _auth.sendPasswordResetEmail(email: email);
     } catch (e) {
-      if (e is FirebaseException) {
-        rethrow;
-      }
-      throw FirebaseException(
-        plugin: 'firebase_auth',
-        code: 'reset-failed',
-        message: e.toString(),
-      );
+      debugPrint('Error resetting password: $e');
+      rethrow;
     }
   }
 
-  /// Get user data from Firestore
-  Future<UserModel> getUserData(String userId) async {
+  /// Get user data from Realtime Database
+  Future<UserModel?> getUserData(String userId) async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+
     try {
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(userId).get();
-
-      if (userDoc.exists) {
-        return UserModel.fromJson(userDoc.data() as Map<String, dynamic>);
-      } else {
-        throw FirebaseException(
-          plugin: 'cloud_firestore',
-          code: 'not-found',
-          message: 'User profile not found',
-        );
+      final snapshot = await _database.ref('users/${user.uid}').get();
+      
+      if (snapshot.exists) {
+        final userData = snapshot.value as Map<dynamic, dynamic>;
+        return UserModel.fromJson(Map<String, dynamic>.from(userData));
       }
+      return null;
     } catch (e) {
-      if (e is FirebaseException) {
-        rethrow;
-      }
-      throw FirebaseException(
-        plugin: 'cloud_firestore',
-        code: 'unknown',
-        message: e.toString(),
-      );
+      debugPrint('Error getting user data: $e');
+      return null;
     }
   }
 
-  /// Update user data in Firestore
+  /// Update user data in Realtime Database
   Future<UserModel> updateUserData(UserModel user) async {
     try {
-      await _firestore.collection('users').doc(user.id).update(user.toJson());
+      await _database.ref('users/${user.id}').update(user.toJson());
       return user;
     } catch (e) {
-      if (e is FirebaseException) {
-        rethrow;
-      }
-      throw FirebaseException(
-        plugin: 'cloud_firestore',
-        code: 'update-failed',
-        message: e.toString(),
-      );
+      debugPrint('Error updating user data: $e');
+      rethrow;
     }
   }
 
   /// Add saved address to user profile
   Future<UserModel> addSavedAddress(String userId, SavedAddress address) async {
     try {
-      // Get current user data
-      UserModel user = await getUserData(userId);
+      final userDoc = await _database.ref('users/$userId').get();
 
-      // Add new address to list
-      List<SavedAddress> updatedAddresses = [...user.savedAddresses, address];
+      if (!userDoc.exists) {
+        throw 'User not found';
+      }
 
-      // Update user with new addresses
-      UserModel updatedUser = user.copyWith(savedAddresses: updatedAddresses);
+      final userData = userDoc.value as Map<dynamic, dynamic>;
+      final user = UserModel.fromJson({
+        ...Map<String, dynamic>.from(userData),
+        'id': userId,
+      });
 
-      // Update in Firestore
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .update(updatedUser.toJson());
+      final updatedAddresses = [...user.savedAddresses, address];
+      final updatedUser = user.copyWith(savedAddresses: updatedAddresses);
+
+      await _database.ref('users/$userId').update({
+        'savedAddresses': updatedAddresses.map((addr) => addr.toJson()).toList(),
+      });
 
       return updatedUser;
     } catch (e) {
-      if (e is FirebaseException) {
-        rethrow;
-      }
-      throw FirebaseException(
-        plugin: 'cloud_firestore',
-        code: 'address-add-failed',
-        message: e.toString(),
-      );
+      debugPrint('Error adding saved address: $e');
+      rethrow;
     }
   }
 
   /// Delete saved address from user profile
   Future<UserModel> deleteSavedAddress(String userId, String addressId) async {
     try {
-      // Get current user data
-      UserModel user = await getUserData(userId);
+      final userDoc = await _database.ref('users/$userId').get();
 
-      // Remove address from list
-      List<SavedAddress> updatedAddresses =
-          user.savedAddresses
-              .where((address) => address.id != addressId)
-              .toList();
+      if (!userDoc.exists) {
+        throw 'User not found';
+      }
 
-      // Update user with new addresses
-      UserModel updatedUser = user.copyWith(savedAddresses: updatedAddresses);
+      final userData = userDoc.value as Map<dynamic, dynamic>;
+      final user = UserModel.fromJson({
+        ...Map<String, dynamic>.from(userData),
+        'id': userId,
+      });
 
-      // Update in Firestore
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .update(updatedUser.toJson());
+      final updatedAddresses = user.savedAddresses
+          .where((addr) => addr.id != addressId)
+          .toList();
+      final updatedUser = user.copyWith(savedAddresses: updatedAddresses);
+
+      await _database.ref('users/$userId').update({
+        'savedAddresses': updatedAddresses.map((addr) => addr.toJson()).toList(),
+      });
 
       return updatedUser;
     } catch (e) {
-      if (e is FirebaseException) {
-        rethrow;
-      }
-      throw FirebaseException(
-        plugin: 'cloud_firestore',
-        code: 'address-delete-failed',
-        message: e.toString(),
-      );
+      debugPrint('Error deleting saved address: $e');
+      rethrow;
     }
   }
 
   // Check if user is admin
   Future<bool> isUserAdmin(String userId) async {
     try {
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(userId).get();
+      final user = _auth.currentUser;
+      if (user == null) return false;
 
-      if (userDoc.exists) {
-        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+      final snapshot = await _database.ref('users/${user.uid}/isAdmin').get();
+      
+      if (snapshot.exists) {
+        final userData = snapshot.value as Map<dynamic, dynamic>;
         return userData['isAdmin'] ?? false;
-      } else {
-        return false;
       }
+      return false;
     } catch (e) {
       return false;
+    }
+  }
+
+  // Create user with email and password
+  Future<UserCredential> createUserWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      return await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } catch (e) {
+      debugPrint('Error creating user: $e');
+      rethrow;
+    }
+  }
+
+  // Sign in with email and password
+  Future<UserCredential> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      return await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } catch (e) {
+      debugPrint('Error signing in: $e');
+      rethrow;
     }
   }
 }

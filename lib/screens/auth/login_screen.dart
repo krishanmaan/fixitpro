@@ -8,6 +8,7 @@ import 'package:fixitpro/widgets/custom_button.dart';
 import 'package:fixitpro/widgets/custom_text_field.dart';
 import 'package:fixitpro/screens/home/home_screen.dart';
 import 'package:fixitpro/screens/admin/admin_dashboard_screen.dart';
+import 'package:fixitpro/providers/admin_provider.dart';
 
 // Helper function to safely create non-const BorderRadius
 BorderRadius getDefaultBorderRadius() {
@@ -76,25 +77,40 @@ class _LoginScreenState extends State<LoginScreen> {
 
       try {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final adminProvider = Provider.of<AdminProvider>(context, listen: false);
+        
         final success = await authProvider.login(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
 
-        if (success && mounted) {
-          // Navigate based on user role
-          if (authProvider.isAdmin) {
-            Navigator.of(
-              context,
-            ).pushReplacementNamed(AdminDashboardScreen.routeName);
+        if (!mounted) return;
+
+        if (success) {
+          // Wait for admin status check to complete
+          await adminProvider.checkAdminStatus();
+          
+          if (!mounted) return;
+
+          // Navigate based on admin status from adminProvider
+          if (adminProvider.isAdmin) {
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              AdminDashboardScreen.routeName,
+              (route) => false, // Clear all routes
+            );
           } else {
-            Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              HomeScreen.routeName,
+              (route) => false, // Clear all routes
+            );
           }
-        } else if (!success && mounted) {
-          setState(() {
-            _errorMessage = authProvider.error;
-            _isLoading = false;
-          });
+        } else {
+          if (mounted) {
+            setState(() {
+              _errorMessage = authProvider.error;
+              _isLoading = false;
+            });
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -153,24 +169,22 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
+    final adminProvider = Provider.of<AdminProvider>(context);
 
-    // If auth state changes and user is authenticated, navigate to the appropriate screen
-    if (authProvider.isAuthenticated && _isLoading) {
-      // Instead of immediately changing state during build, schedule it
+    // If already authenticated, navigate to appropriate screen
+    if (authProvider.isAuthenticated && adminProvider.isAdmin) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-
-          if (authProvider.isAdmin) {
-            Navigator.of(
-              context,
-            ).pushReplacementNamed(AdminDashboardScreen.routeName);
-          } else {
-            Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
-          }
-        }
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AdminDashboardScreen.routeName,
+          (route) => false,
+        );
+      });
+    } else if (authProvider.isAuthenticated) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          HomeScreen.routeName,
+          (route) => false,
+        );
       });
     }
 

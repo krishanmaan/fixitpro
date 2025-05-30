@@ -121,6 +121,39 @@ class BookingCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // User ID (added this to show which user made the booking)
+                  if (booking.userId.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppConstants.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.person,
+                            size: 14,
+                            color: AppConstants.primaryColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'User: ${booking.userId.substring(0, booking.userId.length > 10 ? 10 : booking.userId.length)}...',
+                            style: const TextStyle(
+                              color: AppConstants.primaryColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   // Service name
                   Row(
                     children: [

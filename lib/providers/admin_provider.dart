@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:fixitpro/models/admin_model.dart';
 import 'package:fixitpro/models/booking_model.dart' as booking_models;
 import 'package:fixitpro/models/service_model.dart' as service_models;
 import 'package:fixitpro/models/user_model.dart';
@@ -10,225 +9,177 @@ import 'package:uuid/uuid.dart';
 
 class AdminProvider with ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
-  final FirebaseAuth _auth;
-  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseDatabase _database = FirebaseDatabase.instance;
   final Uuid _uuid = const Uuid();
 
   // States
-  AdminModel? _currentAdmin;
+  bool _isLoading = false;
+  String? _error;
+  bool _isAdmin = false;
+  final Map<String, dynamic> _dashboardStats = {
+    'userCount': 0,
+    'serviceCount': 0,
+    'pendingBookings': 0,
+    'completedBookings': 0,
+    'totalRevenue': 0.0,
+  };
   List<UserModel> _users = [];
   List<service_models.ServiceModel> _services = [];
   List<booking_models.BookingModel> _bookings = [];
-  Map<String, dynamic> _stats = {};
   List<service_models.ServiceTypeModel> _serviceTypes = [];
-  bool _isLoading = false;
-  String? _error;
-  final bool _isOfflineMode = false;
+  bool _isOfflineMode = false;
 
-  // Constructor that gets necessary Firebase instances from our service
-  AdminProvider()
-    : _auth = FirebaseService().auth,
-      _firestore = FirebaseService().firestore;
+  // Constructor - Check admin status when provider is created
+  AdminProvider() {
+    checkAdminStatus();
+  }
 
   // Getters
-  AdminModel? get currentAdmin => _currentAdmin;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+  bool get isAdmin => _isAdmin;
+  Map<String, dynamic> get dashboardStats => _dashboardStats;
   List<UserModel> get users => _users;
   List<service_models.ServiceModel> get services => _services;
   List<booking_models.BookingModel> get bookings => _bookings;
   List<service_models.ServiceTypeModel> get serviceTypes => _serviceTypes;
-  Map<String, dynamic> get stats => _stats;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
-  bool get isAdminAuthenticated => _currentAdmin != null;
   bool get isOfflineMode => _isOfflineMode;
 
-  // Check if the current user is an admin
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+
+  // Check if current user is admin
   Future<bool> checkAdminStatus() async {
+    debugPrint('Checking admin status...');
     if (_auth.currentUser == null) {
-      _resetAdminState();
+      debugPrint('No user logged in');
+      _isAdmin = false;
+      notifyListeners();
       return false;
     }
 
-    _setLoading(true);
-    _error = null;
-
     try {
-      // Check admin access using our service
-      final bool isAdmin = await _firebaseService.checkAdminAccess();
+      final userId = _auth.currentUser!.uid;
+      debugPrint('Checking admin status for user: $userId');
 
-      if (!isAdmin) {
-        _resetAdminState();
+      // First check user document
+      final userSnapshot = await _database
+          .ref('users/$userId')
+          .get();
+
+      if (!userSnapshot.exists) {
+        debugPrint('User document not found');
+        _isAdmin = false;
+        notifyListeners();
         return false;
       }
 
-      // If user is admin, try to get their admin profile
-      final userId = _auth.currentUser!.uid;
+      final userData = userSnapshot.value as Map<dynamic, dynamic>;
+      final isAdminInUser = userData['isAdmin'] == true;
+      debugPrint('User isAdmin status from users collection: $isAdminInUser');
 
-      // Use safeFirestoreOperation to handle permission errors gracefully
-      final adminData = await _firebaseService
-          .safeFirestoreOperation<Map<String, dynamic>?>(() async {
-            final adminDoc =
-                await _firestore.collection('admins').doc(userId).get();
-
-            if (adminDoc.exists) {
-              return {...adminDoc.data() as Map<String, dynamic>, 'id': userId};
-            }
-            return null;
-          }, null);
-
-      if (adminData != null) {
-        _currentAdmin = AdminModel.fromJson(adminData);
-      } else {
-        // If admin document doesn't exist but user is marked as admin,
-        // create a basic admin model from user data
-        final userData = await _firebaseService
-            .safeFirestoreOperation<Map<String, dynamic>?>(() async {
-              final userDoc =
-                  await _firestore.collection('users').doc(userId).get();
-              if (userDoc.exists) {
-                return userDoc.data() as Map<String, dynamic>;
-              }
-              return null;
-            }, null);
-
-        if (userData != null) {
-          _currentAdmin = AdminModel(
-            id: userId,
-            name: userData['name'] ?? 'Admin User',
-            email: userData['email'] ?? '',
-            phoneNumber: userData['phone'] ?? '',
-            isSuperAdmin: false,
-            createdAt: DateTime.now(),
-          );
-        } else {
-          // Create minimal admin model if we can't fetch user data
-          _currentAdmin = AdminModel(
-            id: userId,
-            name: 'Admin User',
-            email: _auth.currentUser?.email ?? '',
-            phoneNumber: _auth.currentUser?.phoneNumber ?? '',
-            isSuperAdmin: false,
-            createdAt: DateTime.now(),
-          );
-        }
+      if (!isAdminInUser) {
+        debugPrint('User is not marked as admin in users collection');
+        _isAdmin = false;
+        notifyListeners();
+        return false;
       }
 
-      _setLoading(false);
-      return _currentAdmin != null;
+      // Then verify admin document exists
+      final adminSnapshot = await _database
+          .ref('admins/$userId')
+          .get();
+
+      if (!adminSnapshot.exists) {
+        debugPrint('Admin document not found, creating one...');
+        // Create admin document
+        await _database.ref('admins/$userId').set({
+          'email': userData['email'] ?? _auth.currentUser?.email ?? '',
+          'name': userData['name'] ?? 'Admin User',
+          'createdAt': ServerValue.timestamp,
+        });
+        debugPrint('Admin document created');
+      } else {
+        debugPrint('Admin document exists');
+      }
+      
+      _isAdmin = true;
+      debugPrint('Admin status confirmed: $_isAdmin');
+      notifyListeners();
+      return true;
     } catch (e) {
       debugPrint('Error checking admin status: $e');
-      _error = 'Failed to verify admin status';
-      _resetAdminState();
+      _isAdmin = false;
+      notifyListeners();
       return false;
     }
-  }
-
-  // Reset admin state (used when user is not admin or logs out)
-  void _resetAdminState() {
-    _setLoading(false);
-    _currentAdmin = null;
   }
 
   // Fetch dashboard statistics
   Future<void> fetchDashboardStats() async {
-    _setLoading(true);
-    _error = null;
-
-    // Default stats as fallback
-    final defaultStats = {
-      'userCount': 0,
-      'serviceCount': _services.length,
-      'pendingBookings': 0,
-      'completedBookings': 0,
-      'totalRevenue': 0.0,
-    };
-
-    if (!await _ensureAdminAccess()) {
-      _stats = Map.from(defaultStats);
-      _setLoading(false);
+    if (!_isAdmin) {
+      _error = 'Not authorized';
       return;
     }
 
-    // Use safeFirestoreOperation for all stats fetching to handle permission errors
-    final Map<String, dynamic> newStats = {};
+    _setLoading(true);
+    try {
+      // Get users count
+      final usersSnapshot = await _database.ref('users').get();
+      if (usersSnapshot.exists) {
+        final usersData = usersSnapshot.value as Map<dynamic, dynamic>;
+        _dashboardStats['userCount'] = usersData.length;
+        debugPrint('Users count: ${usersData.length}');
+      }
 
-    // Get user count
-    final userCount = await _firebaseService.safeFirestoreOperation<int>(
-      () async {
-        final userSnapshot = await _firestore.collection('users').count().get();
-        // Explicitly return int to avoid type issues
-        return userSnapshot.count ?? 0;
-      },
-      0, // Default value as int
-    );
-    newStats['userCount'] = userCount;
+      // Get services count
+      final servicesSnapshot = await _database.ref('services').get();
+      if (servicesSnapshot.exists) {
+        final servicesData = servicesSnapshot.value as Map<dynamic, dynamic>;
+        _dashboardStats['serviceCount'] = servicesData.length;
+      }
 
-    // Get service count
-    final serviceCount = await _firebaseService.safeFirestoreOperation<int>(
-      () async {
-        final serviceSnapshot =
-            await _firestore.collection('services').count().get();
-        return serviceSnapshot.count ?? 0;
-      },
-      defaultStats['serviceCount'] as int,
-    );
-    newStats['serviceCount'] = serviceCount;
+      // Get pending bookings
+      final pendingSnapshot = await _database
+          .ref('bookings')
+          .orderByChild('status')
+          .equalTo('pending')
+          .get();
+      if (pendingSnapshot.exists) {
+        final pendingData = pendingSnapshot.value as Map<dynamic, dynamic>;
+        _dashboardStats['pendingBookings'] = pendingData.length;
+      }
 
-    // Get pending bookings count
-    final pendingCount = await _firebaseService.safeFirestoreOperation<int>(
-      () async {
-        final pendingBookings =
-            await _firestore
-                .collection('bookings')
-                .where('status', isEqualTo: 'BookingStatus.pending')
-                .count()
-                .get();
-        return pendingBookings.count ?? 0;
-      },
-      0,
-    );
-    newStats['pendingBookings'] = pendingCount;
+      // Get completed bookings and calculate revenue
+      final completedSnapshot = await _database
+          .ref('bookings')
+          .orderByChild('status')
+          .equalTo('completed')
+          .get();
+      if (completedSnapshot.exists) {
+        final completedData = completedSnapshot.value as Map<dynamic, dynamic>;
+        _dashboardStats['completedBookings'] = completedData.length;
 
-    // Get completed bookings count
-    final completedCount = await _firebaseService.safeFirestoreOperation<int>(
-      () async {
-        final completedBookings =
-            await _firestore
-                .collection('bookings')
-                .where('status', isEqualTo: 'BookingStatus.completed')
-                .count()
-                .get();
-        return completedBookings.count ?? 0;
-      },
-      0,
-    );
-    newStats['completedBookings'] = completedCount;
-
-    // Get total revenue
-    final totalRevenue = await _firebaseService.safeFirestoreOperation<double>(
-      () async {
-        final revenueSnapshot =
-            await _firestore
-                .collection('bookings')
-                .where('status', isEqualTo: 'BookingStatus.completed')
-                .get();
-
-        double total = 0.0;
-        for (var doc in revenueSnapshot.docs) {
-          final data = doc.data();
-          if (data['totalPrice'] != null) {
-            total += (data['totalPrice'] as num).toDouble();
+        double totalRevenue = 0.0;
+        completedData.forEach((key, value) {
+          final booking = value as Map<dynamic, dynamic>;
+          if (booking['totalPrice'] != null) {
+            totalRevenue += (booking['totalPrice'] as num).toDouble();
           }
-        }
-        return total;
-      },
-      0.0,
-    );
-    newStats['totalRevenue'] = totalRevenue;
+        });
+        _dashboardStats['totalRevenue'] = totalRevenue;
+      }
 
-    _stats = newStats;
-    _setLoading(false);
-    notifyListeners();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching dashboard stats: $e');
+      _error = 'Failed to load statistics';
+    } finally {
+      _setLoading(false);
+    }
   }
 
   // Fetch all users
@@ -238,34 +189,41 @@ class AdminProvider with ChangeNotifier {
 
     if (!await _ensureAdminAccess()) {
       _users = [];
+      _error = 'Not authorized to access user data';
       _setLoading(false);
       return;
     }
 
     try {
-      // Check if we can access the users collection
-      final canAccessUsers = await _firebaseService.checkCollection('users');
+      // Fetch users directly since we've already checked admin access
+      final snapshot = await _firebaseService.safeRealtimeDatabaseOperation<DataSnapshot?>(() async {
+        return await _database.ref('users').get();
+      }, null);
 
-      if (!canAccessUsers) {
+      if (snapshot == null || !snapshot.exists) {
         _users = [];
-        _error = 'Cannot access user data';
+        _error = 'No users found';
         _setLoading(false);
         return;
       }
 
-      // Fetch users
-      final snapshot = await _firestore.collection('users').get();
-      _users =
-          snapshot.docs.map((doc) {
-            final data = doc.data();
-            return UserModel.fromJson({...data, 'id': doc.id});
+      final data = snapshot.value as Map<dynamic, dynamic>;
+      _users = data.entries.map((entry) {
+        final userData = entry.value as Map<dynamic, dynamic>;
+        return UserModel.fromJson({
+          ...Map<String, dynamic>.from(userData),
+          'id': entry.key,
+        });
           }).toList();
+
+      debugPrint('Successfully loaded ${_users.length} users');
     } catch (e) {
       debugPrint('Error fetching users: $e');
       _error = 'Failed to load users';
       _users = [];
     } finally {
       _setLoading(false);
+      notifyListeners();
     }
   }
 
@@ -287,13 +245,13 @@ class AdminProvider with ChangeNotifier {
       }
 
       // Fetch services
-      final snapshot = await _firestore.collection('services').get();
+      final snapshot = await _database.ref('services').get();
       _services =
-          snapshot.docs.map((doc) {
-            final data = doc.data();
+          snapshot.children.map((child) {
+            final data = child.value as Map<dynamic, dynamic>;
             return service_models.ServiceModel.fromJson({
               ...data,
-              'id': doc.id,
+              'id': child.key,
             });
           }).toList();
     } catch (e) {
@@ -329,20 +287,20 @@ class AdminProvider with ChangeNotifier {
       }
 
       // Fetch bookings without complex ordering
-      final snapshot = await _firestore.collection('bookings').get();
+      final snapshot = await _database.ref('bookings').get();
 
       _bookings =
-          snapshot.docs
-              .map((doc) {
-                final data = doc.data();
+          snapshot.children
+              .map((child) {
+                final data = child.value as Map<dynamic, dynamic>;
 
                 // Extract timeSlot data
-                final timeSlotData = data['timeSlot'] as Map<String, dynamic>;
-                final addressData = data['address'] as Map<String, dynamic>;
+                final timeSlotData = data['timeSlot'] as Map<dynamic, dynamic>;
+                final addressData = data['address'] as Map<dynamic, dynamic>;
 
                 try {
                   return booking_models.BookingModel(
-                    id: doc.id,
+                    id: child.key!,
                     userId: data['userId'] as String,
                     serviceId: data['serviceId'] as String,
                     serviceName: data['serviceName'] as String,
@@ -448,8 +406,8 @@ class AdminProvider with ChangeNotifier {
 
   // Helper to parse a date from either Timestamp or String
   DateTime _parseTimestampOrString(dynamic dateValue) {
-    if (dateValue is Timestamp) {
-      return dateValue.toDate();
+    if (dateValue is int) {
+      return DateTime.fromMillisecondsSinceEpoch(dateValue);
     } else if (dateValue is String) {
       try {
         return DateTime.parse(dateValue);
@@ -465,698 +423,352 @@ class AdminProvider with ChangeNotifier {
     }
   }
 
-  // Add a new service
-  Future<bool> addService(service_models.ServiceModel service) async {
+  // Fetch service types
+  Future<void> fetchServiceTypes() async {
     _setLoading(true);
     _error = null;
 
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to add services';
+    try {
+      final snapshot = await _database.ref('serviceTypes').get();
+      
+      if (snapshot.exists) {
+        final data = snapshot.value as Map<dynamic, dynamic>;
+        _serviceTypes = data.entries.map((entry) {
+          return service_models.ServiceTypeModel.fromJson({
+            ...Map<String, dynamic>.from(entry.value as Map<dynamic, dynamic>),
+            'id': entry.key,
+          });
+        }).toList();
+      } else {
+        // If no service types exist, create default ones
+        await _createDefaultServiceTypes();
+      }
+    } catch (e) {
+      debugPrint('Error fetching service types: $e');
+      _error = 'Failed to load service types';
+    } finally {
       _setLoading(false);
-      return false;
+      notifyListeners();
     }
+  }
+
+  // Create default service types if none exist
+  Future<void> _createDefaultServiceTypes() async {
+    try {
+      final defaultTypes = [
+        {
+          'id': 'repair',
+          'name': 'Repair',
+          'description': 'Repair services',
+          'icon': 'build',
+        },
+        {
+          'id': 'installation',
+          'name': 'Installation',
+          'description': 'Installation services',
+          'icon': 'settings',
+        },
+        {
+          'id': 'maintenance',
+          'name': 'Maintenance',
+          'description': 'Maintenance services',
+          'icon': 'handyman',
+        },
+      ];
+
+      for (final type in defaultTypes) {
+        await _database.ref('serviceTypes/${type['id']}').set(type);
+      }
+
+      _serviceTypes = defaultTypes.map((type) => 
+        service_models.ServiceTypeModel.fromJson(Map<String, dynamic>.from(type))
+      ).toList();
+    } catch (e) {
+      debugPrint('Error creating default service types: $e');
+    }
+  }
+
+  // Add a new service
+  Future<bool> addService(service_models.ServiceModel service) async {
+    if (!_isAdmin) return false;
 
     try {
-      final String serviceId = _uuid.v4();
-
-      // Make sure we have the full service type from our loaded types
-      final serviceType = _serviceTypes.firstWhere(
-        (type) => type.id == service.type.id,
-        orElse: () => service.type,
-      );
-
-      // Create service with the generated ID
-      final newService = service_models.ServiceModel(
-        id: serviceId,
-        title: service.title,
-        description: service.description,
-        type: serviceType, // Use the retrieved service type
-        unit: service.unit,
-        includesMaterial: service.includesMaterial,
-        tiers: service.tiers,
-        designs: service.designs,
-        imageUrl: service.imageUrl,
-        categoryId: service.categoryId,
-      );
-
-      // Save to Firestore
-      await _firestore
-          .collection('services')
-          .doc(serviceId)
-          .set(newService.toJson());
-
-      // Add to local list
-      _services.add(newService);
+      final serviceData = service.toJson();
+      final newServiceRef = _database.ref('services').push();
+      await newServiceRef.set({
+        ...serviceData,
+        'id': newServiceRef.key,
+        'createdAt': ServerValue.timestamp,
+      });
       return true;
     } catch (e) {
       debugPrint('Error adding service: $e');
-      _error = 'Failed to add service: ${e.toString()}';
+      _error = 'Failed to add service';
       return false;
-    } finally {
-      _setLoading(false);
     }
   }
 
   // Update a service
-  Future<bool> updateService(service_models.ServiceModel service) async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to update services';
-      _setLoading(false);
-      return false;
-    }
+  Future<bool> updateService(String serviceId, service_models.ServiceModel service) async {
+    if (!_isAdmin) return false;
 
     try {
-      // Make sure we have the full service type from our loaded types
-      final serviceType = _serviceTypes.firstWhere(
-        (type) => type.id == service.type.id,
-        orElse: () => service.type,
-      );
-
-      // Create updated service with the correct service type
-      final updatedService = service.copyWith(type: serviceType);
-
-      // Update in local list
-      final index = _services.indexWhere((s) => s.id == service.id);
-      if (index != -1) {
-        _services[index] = updatedService;
-      }
-
-      // Update in Firestore
-      await _firestore
-          .collection('services')
-          .doc(service.id)
-          .update(updatedService.toJson());
+      await _database.ref('services/$serviceId').update(service.toJson());
       return true;
     } catch (e) {
       debugPrint('Error updating service: $e');
       _error = 'Failed to update service';
       return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  // Delete a service
-  Future<bool> deleteService(String serviceId) async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to delete services';
-      _setLoading(false);
-      return false;
-    }
-
-    try {
-      // Remove from local list
-      _services.removeWhere((service) => service.id == serviceId);
-
-      // Delete from Firestore
-      await _firestore.collection('services').doc(serviceId).delete();
-      return true;
-    } catch (e) {
-      debugPrint('Error deleting service: $e');
-      _error = 'Failed to delete service';
-      return false;
-    } finally {
-      _setLoading(false);
     }
   }
 
   // Add tier pricing to a service
-  Future<bool> addTierPricing(
-    String serviceId,
-    service_models.TierPricing tier,
-  ) async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to add tier pricing';
-      _setLoading(false);
-      return false;
-    }
+  Future<bool> addTierPricing(String serviceId, service_models.TierPricing tier) async {
+    if (!_isAdmin) return false;
 
     try {
-      // Find the service
-      final serviceIndex = _services.indexWhere((s) => s.id == serviceId);
-      if (serviceIndex == -1) {
-        _error = 'Service not found';
-        _setLoading(false);
-        return false;
-      }
-
-      // Add tier ID if not present
-      final tierId = tier.id.isEmpty ? _uuid.v4() : tier.id;
-      final newTier = service_models.TierPricing(
-        id: tierId,
-        serviceId: serviceId,
-        tier: tier.tier,
-        price: tier.price,
-        warrantyMonths: tier.warrantyMonths,
-        features: tier.features,
-      );
-
-      // Create updated service with new tier
-      final service = _services[serviceIndex];
-      final updatedTiers = [...service.tiers, newTier];
-      final updatedService = service.copyWith(tiers: updatedTiers);
-
-      // Update in local list
-      _services[serviceIndex] = updatedService;
-
-      // Update in Firestore
-      await _firestore.collection('services').doc(serviceId).update({
-        'tiers': updatedTiers.map((t) => t.toJson()).toList(),
-      });
-
+      final tierId = tier.id.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : tier.id;
+      await _database.ref('services/$serviceId/tiers/$tierId').set(tier.toJson());
       return true;
     } catch (e) {
       debugPrint('Error adding tier pricing: $e');
       _error = 'Failed to add tier pricing';
       return false;
-    } finally {
-      _setLoading(false);
     }
   }
 
   // Add material design to a service
-  Future<bool> addMaterialDesign(
-    String serviceId,
-    service_models.MaterialDesign design,
-  ) async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to add material design';
-      _setLoading(false);
-      return false;
-    }
+  Future<bool> addMaterialDesign(String serviceId, service_models.MaterialDesign design) async {
+    if (!_isAdmin) return false;
 
     try {
-      // Find the service
-      final serviceIndex = _services.indexWhere((s) => s.id == serviceId);
-      if (serviceIndex == -1) {
-        _error = 'Service not found';
-        _setLoading(false);
-        return false;
-      }
-
-      // Add design ID if not present
-      final designId = design.id.isEmpty ? _uuid.v4() : design.id;
-      final newDesign = service_models.MaterialDesign(
-        id: designId,
-        serviceId: serviceId,
-        name: design.name,
-        pricePerUnit: design.pricePerUnit,
-        imageUrl: design.imageUrl,
-      );
-
-      // Create updated service with new design
-      final service = _services[serviceIndex];
-      final updatedDesigns = [...service.designs, newDesign];
-      final updatedService = service.copyWith(designs: updatedDesigns);
-
-      // Update in local list
-      _services[serviceIndex] = updatedService;
-
-      // Update in Firestore
-      await _firestore.collection('services').doc(serviceId).update({
-        'designs': updatedDesigns.map((d) => d.toJson()).toList(),
-      });
-
+      final designId = design.id.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : design.id;
+      await _database.ref('services/$serviceId/designs/$designId').set(design.toJson());
       return true;
     } catch (e) {
       debugPrint('Error adding material design: $e');
       _error = 'Failed to add material design';
       return false;
-    } finally {
-      _setLoading(false);
+    }
+  }
+
+  // Delete a service
+  Future<bool> deleteService(String serviceId) async {
+    if (!_isAdmin) return false;
+
+    try {
+      await _database.ref('services/$serviceId').remove();
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting service: $e');
+      _error = 'Failed to delete service';
+      return false;
     }
   }
 
   // Update booking status
-  Future<bool> updateBookingStatus(
-    String bookingId,
-    booking_models.BookingStatus status,
-  ) async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to update booking status';
-      _setLoading(false);
-      return false;
-    }
+  Future<bool> updateBookingStatus(String bookingId, booking_models.BookingStatus status) async {
+    if (!_isAdmin) return false;
 
     try {
-      // Update in local list first
-      final index = _bookings.indexWhere((b) => b.id == bookingId);
-      if (index != -1) {
-        _bookings[index] = _bookings[index].copyWith(status: status);
-      } else {
-        debugPrint('Warning: Booking not found in local list');
-      }
-
-      // Update in Firestore
-      await _firestore.collection('bookings').doc(bookingId).update({
-        'status': status.toString(),
-        'updatedAt': FieldValue.serverTimestamp(),
+      await _database.ref('bookings/$bookingId').update({
+        'status': status.toString().split('.').last,
+        'updatedAt': ServerValue.timestamp,
       });
-
       return true;
     } catch (e) {
       debugPrint('Error updating booking status: $e');
-      _error = 'Failed to update booking status';
+      _error = 'Failed to update booking';
       return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  // Create time slots for a date
-  Future<bool> createTimeSlotsForDate(
-    DateTime date,
-    List<String> selectedTimes,
-  ) async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to create time slots';
-      _setLoading(false);
-      return false;
-    }
-
-    try {
-      // Format date to YYYY-MM-DD
-      final dateStr =
-          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-      // Check if slots already exist for this date and these times
-      final existingSlots =
-          await _firestore
-              .collection('timeSlots')
-              .where('dateStr', isEqualTo: dateStr)
-              .get();
-
-      // Filter out times that already exist
-      final existingTimes =
-          existingSlots.docs
-              .map((doc) => doc.data()['time'] as String)
-              .toList();
-
-      final newTimes =
-          selectedTimes.where((time) => !existingTimes.contains(time)).toList();
-
-      if (newTimes.isEmpty) {
-        debugPrint('All selected time slots already exist for this date');
-        return true;
-      }
-
-      // Create batch for efficiency
-      final batch = _firestore.batch();
-
-      for (var time in newTimes) {
-        final slotId = _uuid.v4();
-        final docRef = _firestore.collection('timeSlots').doc(slotId);
-
-        batch.set(docRef, {
-          'id': slotId,
-          'date': Timestamp.fromDate(date),
-          'dateStr': dateStr,
-          'time': time,
-          'status': 'SlotStatus.available',
-          'createdBy': _auth.currentUser?.uid,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      await batch.commit();
-      debugPrint(
-        'Successfully created ${newTimes.length} time slots for $dateStr',
-      );
-      return true;
-    } catch (e) {
-      debugPrint('Error creating time slots: $e');
-      _error = 'Failed to create time slots';
-      return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  // Promote user to admin role
-  Future<bool> promoteToAdmin(String userId) async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to promote users';
-      _setLoading(false);
-      return false;
-    }
-
-    try {
-      // Get user details
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-
-      if (!userDoc.exists) {
-        _error = 'User not found';
-        return false;
-      }
-
-      final userData = userDoc.data() as Map<String, dynamic>;
-
-      // Create admin document
-      final adminData = {
-        'id': userId,
-        'name': userData['name'],
-        'email': userData['email'],
-        'isSuperAdmin': false,
-        'createdAt': FieldValue.serverTimestamp(),
-        'phoneNumber': userData['phone'],
-      };
-
-      // Update user document to mark as admin
-      await _firestore.collection('users').doc(userId).update({
-        'isAdmin': true,
-      });
-
-      // Create admin document
-      await _firestore.collection('admins').doc(userId).set(adminData);
-      return true;
-    } catch (e) {
-      debugPrint('Error promoting user to admin: $e');
-      _error = 'Failed to promote user to admin';
-      return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  // Delete a time slot
-  Future<bool> deleteTimeSlot(String slotId) async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to delete time slots';
-      _setLoading(false);
-      return false;
-    }
-
-    try {
-      // Check if the slot is already booked
-      final slotDoc =
-          await _firestore.collection('timeSlots').doc(slotId).get();
-
-      if (!slotDoc.exists) {
-        _error = 'Time slot not found';
-        _setLoading(false);
-        return false;
-      }
-
-      final slotData = slotDoc.data() as Map<String, dynamic>;
-      if (slotData['status'] == 'SlotStatus.booked') {
-        _error = 'Cannot delete a booked time slot';
-        _setLoading(false);
-        return false;
-      }
-
-      // Delete the time slot
-      await _firestore.collection('timeSlots').doc(slotId).delete();
-      return true;
-    } catch (e) {
-      debugPrint('Error deleting time slot: $e');
-      _error = 'Failed to delete time slot';
-      return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  // Fetch all service types
-  Future<void> fetchServiceTypes() async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _serviceTypes = service_models.ServiceTypeModel.defaults;
-      _setLoading(false);
-      return;
-    }
-
-    try {
-      // Check if we can access the serviceTypes collection
-      final canAccessServiceTypes = await _firebaseService.checkCollection(
-        'serviceTypes',
-      );
-
-      if (!canAccessServiceTypes) {
-        _error = 'Cannot access service type data';
-        _setLoading(false);
-
-        // Return default types even if collection not accessible
-        _serviceTypes = service_models.ServiceTypeModel.defaults;
-        return;
-      }
-
-      // Fetch service types
-      final snapshot = await _firestore.collection('serviceTypes').get();
-
-      if (snapshot.docs.isEmpty) {
-        // If no service types exist in the database, create the default ones
-        await _createDefaultServiceTypes();
-        _serviceTypes = service_models.ServiceTypeModel.defaults;
-      } else {
-        // Load service types from Firestore
-        _serviceTypes =
-            snapshot.docs.map((doc) {
-              final data = doc.data();
-              return service_models.ServiceTypeModel.fromJson({
-                ...data,
-                'id': doc.id,
-              });
-            }).toList();
-      }
-    } catch (e) {
-      debugPrint('Error fetching service types: $e');
-      _error = 'Failed to load service types';
-
-      // Return default types even on error
-      _serviceTypes = service_models.ServiceTypeModel.defaults;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  // Create default service types in Firestore if they don't exist
-  Future<void> _createDefaultServiceTypes() async {
-    final batch = _firestore.batch();
-
-    for (var type in service_models.ServiceTypeModel.defaults) {
-      final typeRef = _firestore.collection('serviceTypes').doc(type.id);
-      batch.set(typeRef, type.toJson());
-    }
-
-    await batch.commit();
-    debugPrint('Created default service types in Firestore');
-  }
-
-  // Add a new service type
-  Future<bool> addServiceType(
-    service_models.ServiceTypeModel serviceType,
-  ) async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to add service types';
-      _setLoading(false);
-      return false;
-    }
-
-    try {
-      // Check if service type with same name already exists
-      final existingType =
-          _serviceTypes
-              .where(
-                (type) =>
-                    type.name.toLowerCase() == serviceType.name.toLowerCase(),
-              )
-              .toList();
-
-      if (existingType.isNotEmpty) {
-        _error = 'A service type with this name already exists';
-        _setLoading(false);
-        return false;
-      }
-
-      final String serviceTypeId =
-          serviceType.id.isEmpty ? _uuid.v4() : serviceType.id;
-
-      // Create service type with the generated ID
-      final newServiceType = service_models.ServiceTypeModel(
-        id: serviceTypeId,
-        name: serviceType.name,
-        displayName: serviceType.displayName,
-        includesMaterial: serviceType.includesMaterial,
-        imageUrl: serviceType.imageUrl,
-      );
-
-      // Save to Firestore
-      await _firestore
-          .collection('serviceTypes')
-          .doc(serviceTypeId)
-          .set(newServiceType.toJson());
-
-      // Add to local list
-      _serviceTypes.add(newServiceType);
-      return true;
-    } catch (e) {
-      debugPrint('Error adding service type: $e');
-      _error = 'Failed to add service type: ${e.toString()}';
-      return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  // Update a service type
-  Future<bool> updateServiceType(
-    service_models.ServiceTypeModel serviceType,
-  ) async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to update service types';
-      _setLoading(false);
-      return false;
-    }
-
-    try {
-      // Check if we're trying to update a default type
-      final isDefaultType =
-          service_models.ServiceTypeModel.defaults
-              .where((type) => type.id == serviceType.id)
-              .isNotEmpty;
-
-      if (isDefaultType) {
-        _error = 'Cannot update default service types';
-        _setLoading(false);
-        return false;
-      }
-
-      // Update in local list
-      final index = _serviceTypes.indexWhere((t) => t.id == serviceType.id);
-      if (index != -1) {
-        _serviceTypes[index] = serviceType;
-      } else {
-        _serviceTypes.add(serviceType);
-      }
-
-      // Update in Firestore
-      await _firestore
-          .collection('serviceTypes')
-          .doc(serviceType.id)
-          .update(serviceType.toJson());
-      return true;
-    } catch (e) {
-      debugPrint('Error updating service type: $e');
-      _error = 'Failed to update service type';
-      return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  // Delete a service type
-  Future<bool> deleteServiceType(String serviceTypeId) async {
-    _setLoading(true);
-    _error = null;
-
-    if (!await _ensureAdminAccess()) {
-      _error = 'Not authorized to delete service types';
-      _setLoading(false);
-      return false;
-    }
-
-    try {
-      // Check if we're trying to delete a default type
-      final isDefaultType =
-          service_models.ServiceTypeModel.defaults
-              .where((type) => type.id == serviceTypeId)
-              .isNotEmpty;
-
-      if (isDefaultType) {
-        _error = 'Cannot delete default service types';
-        _setLoading(false);
-        return false;
-      }
-
-      // Check if any services are using this type
-      final servicesUsingType =
-          _services
-              .where((service) => service.type.id == serviceTypeId)
-              .toList();
-
-      if (servicesUsingType.isNotEmpty) {
-        _error = 'Cannot delete service type that is being used by services';
-        _setLoading(false);
-        return false;
-      }
-
-      // Remove from local list
-      _serviceTypes.removeWhere((type) => type.id == serviceTypeId);
-
-      // Delete from Firestore
-      await _firestore.collection('serviceTypes').doc(serviceTypeId).delete();
-      return true;
-    } catch (e) {
-      debugPrint('Error deleting service type: $e');
-      _error = 'Failed to delete service type';
-      return false;
-    } finally {
-      _setLoading(false);
     }
   }
 
   // Helper method to ensure admin access before performing operations
   Future<bool> _ensureAdminAccess() async {
-    // Check if we're already loaded as admin
-    if (_currentAdmin != null) return true;
-
-    // Try to check admin status
-    return await checkAdminStatus();
+    debugPrint('Ensuring admin access...');
+    if (!_isAdmin) {
+      debugPrint('No admin profile found, checking admin status...');
+      return await checkAdminStatus();
+    }
+    debugPrint('Admin profile exists, access granted');
+    return true;
   }
 
-  // Set loading state safely to avoid setState during build
-  void _setLoading(bool loading) {
-    if (_isLoading == loading) return;
+  // Debug method to check admin status
+  Future<void> debugCheckAdminStatus() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      debugPrint('No user is logged in');
+      return;
+    }
 
-    _isLoading = loading;
+    debugPrint('Checking admin status for user: ${user.uid}');
+    
+    try {
+      // Check user document
+      final userSnapshot = await _database.ref('users/${user.uid}').get();
+      if (userSnapshot.exists) {
+        final userData = userSnapshot.value as Map<dynamic, dynamic>;
+        debugPrint('User data found:');
+        debugPrint('isAdmin: ${userData['isAdmin']}');
+        debugPrint('name: ${userData['name']}');
+        debugPrint('email: ${userData['email']}');
+      } else {
+        debugPrint('No user document found');
+      }
 
-    // Use microtask to avoid calling setState during build
-    Future.microtask(() {
-      notifyListeners();
-    });
+      // Check admin document
+      final adminSnapshot = await _database.ref('admins/${user.uid}').get();
+      if (adminSnapshot.exists) {
+        debugPrint('Admin document exists');
+        final adminData = adminSnapshot.value as Map<dynamic, dynamic>;
+        debugPrint('Admin data:');
+        debugPrint(adminData.toString());
+      } else {
+        debugPrint('No admin document found');
+      }
+    } catch (e) {
+      debugPrint('Error checking admin status: $e');
+    }
   }
 
-  // Clear error safely
-  void clearError() {
-    if (_error == null) return;
+  // Create time slots for a date
+  Future<bool> createTimeSlotsForDate(DateTime date, List<String> selectedTimes) async {
+    if (!_isAdmin) return false;
 
-    _error = null;
+    try {
+      final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      
+      // Check existing slots
+      final existingSlots = await _database.ref('timeSlots')
+          .orderByChild('dateStr')
+          .equalTo(dateStr)
+          .get();
 
-    // Use microtask to avoid calling setState during build
-    Future.microtask(() {
-      notifyListeners();
-    });
+      final existingTimes = existingSlots.exists ? 
+        (existingSlots.value as Map<dynamic, dynamic>).entries
+          .map((entry) => (entry.value as Map<dynamic, dynamic>)['time'] as String)
+          .toList() : [];
+
+      final newTimes = selectedTimes.where((time) => !existingTimes.contains(time)).toList();
+
+      for (var time in newTimes) {
+        final slotId = DateTime.now().millisecondsSinceEpoch.toString();
+        await _database.ref('timeSlots/$slotId').set({
+          'id': slotId,
+          'date': date.toIso8601String(),
+          'dateStr': dateStr,
+          'time': time,
+          'status': 'available',
+          'createdAt': ServerValue.timestamp,
+        });
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('Error creating time slots: $e');
+      _error = 'Failed to create time slots';
+      return false;
+    }
+  }
+
+  // Delete a time slot
+  Future<bool> deleteTimeSlot(String slotId) async {
+    if (!_isAdmin) return false;
+
+    try {
+      final slotSnapshot = await _database.ref('timeSlots/$slotId').get();
+      if (!slotSnapshot.exists) {
+        _error = 'Time slot not found';
+        return false;
+      }
+
+      final slotData = slotSnapshot.value as Map<dynamic, dynamic>;
+      if (slotData['status'] == 'booked') {
+        _error = 'Cannot delete a booked time slot';
+        return false;
+      }
+
+      await _database.ref('timeSlots/$slotId').remove();
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting time slot: $e');
+      _error = 'Failed to delete time slot';
+      return false;
+    }
+  }
+
+  // Promote user to admin
+  Future<bool> promoteToAdmin(String userId) async {
+    if (!_isAdmin) return false;
+
+    try {
+      final userSnapshot = await _database.ref('users/$userId').get();
+      if (!userSnapshot.exists) {
+        _error = 'User not found';
+        return false;
+      }
+
+      await _database.ref('users/$userId').update({'isAdmin': true});
+      return true;
+    } catch (e) {
+      debugPrint('Error promoting user to admin: $e');
+      _error = 'Failed to promote user to admin';
+      return false;
+    }
+  }
+
+  // Add a new service type
+  Future<bool> addServiceType(service_models.ServiceTypeModel serviceType) async {
+    if (!_isAdmin) return false;
+
+    try {
+      final typeId = serviceType.id.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : serviceType.id;
+      await _database.ref('serviceTypes/$typeId').set(serviceType.toJson());
+      return true;
+    } catch (e) {
+      debugPrint('Error adding service type: $e');
+      _error = 'Failed to add service type';
+      return false;
+    }
+  }
+
+  // Update a service type
+  Future<bool> updateServiceType(service_models.ServiceTypeModel serviceType) async {
+    if (!_isAdmin) return false;
+
+    try {
+      await _database.ref('serviceTypes/${serviceType.id}').update(serviceType.toJson());
+      return true;
+    } catch (e) {
+      debugPrint('Error updating service type: $e');
+      _error = 'Failed to update service type';
+      return false;
+    }
+  }
+
+  // Delete a service type
+  Future<bool> deleteServiceType(String typeId) async {
+    if (!_isAdmin) return false;
+
+    try {
+      // Check if any services use this type
+      final servicesSnapshot = await _database.ref('services')
+          .orderByChild('typeId')
+          .equalTo(typeId)
+          .get();
+
+      if (servicesSnapshot.exists) {
+        _error = 'Cannot delete service type that is being used by services';
+        return false;
+      }
+
+      await _database.ref('serviceTypes/$typeId').remove();
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting service type: $e');
+      _error = 'Failed to delete service type';
+      return false;
+    }
   }
 }

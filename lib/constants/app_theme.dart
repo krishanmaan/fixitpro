@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fixitpro/constants/app_constants.dart';
+import 'package:flutter/rendering.dart';
 
 class AppTheme {
   static ThemeData get lightTheme {
@@ -29,6 +31,11 @@ class AppTheme {
         elevation: 0,
         shadowColor: Colors.black26,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+        ),
       ),
       fontFamily: 'Poppins',
       textTheme: const TextTheme(

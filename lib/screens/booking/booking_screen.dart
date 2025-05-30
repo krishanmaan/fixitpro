@@ -158,7 +158,7 @@ class _BookingScreenState extends State<BookingScreen> {
     );
 
     setState(() {
-      _totalPrice = serviceProvider.calculateTotalPrice(_area);
+      _totalPrice = serviceProvider.calculateTotalPrice();
     });
   }
 

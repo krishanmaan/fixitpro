@@ -11,7 +11,9 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 class AddReviewScreen extends StatefulWidget {
   static const String routeName = '/add-review';
 
-  const AddReviewScreen({super.key});
+  final String bookingId;
+
+  const AddReviewScreen({super.key, required this.bookingId});
 
   @override
   State<AddReviewScreen> createState() => _AddReviewScreenState();
@@ -49,11 +51,9 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
         }
 
         await bookingProvider.addReview(
-          bookingId: booking.id,
-          userId: authProvider.user!.id,
+          bookingId: widget.bookingId,
           rating: _rating,
           comment: _commentController.text.trim(),
-          userName: authProvider.user!.name,
         );
 
         if (mounted) {

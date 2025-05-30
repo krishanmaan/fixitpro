@@ -813,9 +813,7 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                           description: descriptionController.text,
                           type: selectedType,
                           unit: selectedUnit,
-                          includesMaterial:
-                              selectedType
-                                  .includesMaterial, // Get from type, not switch
+                          includesMaterial: selectedType.includesMaterial, // Get from type, not switch
                           imageUrl: imageUrlController.text,
                           tiers: service.tiers,
                           designs: service.designs,
@@ -830,6 +828,7 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                         );
 
                         final success = await adminProvider.updateService(
+                          updatedService.id,
                           updatedService,
                         );
 

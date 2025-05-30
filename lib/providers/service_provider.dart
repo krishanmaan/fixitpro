@@ -5,11 +5,11 @@ import 'package:fixitpro/services/firebase_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class ServiceProvider extends ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseDatabase _database = FirebaseDatabase.instance;
   final FirebaseService _firebaseService = FirebaseService();
 
   List<ServiceModel> _services = [];
@@ -39,6 +39,7 @@ class ServiceProvider extends ChangeNotifier {
   // Helper method to set loading state
   void _setLoading(bool loading) {
     _isLoading = loading;
+    notifyListeners();
   }
 
   // Check Firebase access permissions using improved FirebaseService
@@ -174,46 +175,72 @@ class ServiceProvider extends ChangeNotifier {
       bool hasFirebaseAccess = await _checkFirebasePermissions();
 
       if (hasFirebaseAccess) {
-        // First load service types using safeFirestoreOperation
-        await _firebaseService.safeFirestoreOperation<void>(() async {
-          final snapshot = await _firestore.collection('serviceTypes').get();
+        // First load service types
+        await _firebaseService.safeRealtimeDatabaseOperation<void>(() async {
+          final snapshot = await _database.ref('serviceTypes').get();
 
-          if (snapshot.docs.isEmpty) {
+          if (!snapshot.exists) {
             _serviceTypes = ServiceTypeModel.defaults;
           } else {
-            _serviceTypes =
-                snapshot.docs.map((doc) {
-                  final data = doc.data();
-                  return ServiceTypeModel.fromJson({...data, 'id': doc.id});
-                }).toList();
+            final typesData = snapshot.value as Map<dynamic, dynamic>;
+            _serviceTypes = typesData.entries.map((entry) {
+              final data = entry.value as Map<dynamic, dynamic>;
+              return ServiceTypeModel.fromJson({
+                ...Map<String, dynamic>.from(data),
+                'id': entry.key,
+              });
+            }).toList();
           }
         }, null);
 
-        // Then load services using database service
-        try {
-          final List<ServiceModel> firestoreServices =
-              await _databaseService.getAllServices();
-          _services = firestoreServices;
-          _hasLoadedOnce = true;
-          _lastLoadTime = now;
-        } catch (e) {
-          // If there's an error, fall back to cached services
-          debugPrint('Error loading services: $e, using cached data');
-          await _loadServicesFromLocalStorage();
-        }
+        // Then load services
+        await _firebaseService.safeRealtimeDatabaseOperation<void>(() async {
+          final snapshot = await _database.ref('services').get();
+          
+          if (snapshot.exists) {
+            final servicesData = snapshot.value as Map<dynamic, dynamic>;
+            _services = servicesData.entries.map((entry) {
+              final data = entry.value as Map<dynamic, dynamic>;
+              final serviceData = Map<String, dynamic>.from(data);
+              
+              // Ensure type is properly set
+              if (serviceData['type'] is String) {
+                // Convert legacy type string to ServiceTypeModel
+                final typeId = serviceData['type'] as String;
+                final serviceType = _serviceTypes.firstWhere(
+                  (type) => type.id == typeId,
+                  orElse: () => ServiceTypeModel.defaults.first,
+                );
+                serviceData['type'] = serviceType.toJson();
+              }
 
-        // Cache the results for offline use
+              return ServiceModel.fromJson({
+                ...serviceData,
+                'id': entry.key,
+              });
+            }).toList();
+
+            // Sort services by title
+            _services.sort((a, b) => a.title.compareTo(b.title));
+          } else {
+            _services = [];
+          }
+        }, null);
+
+        // Save to local storage for offline access
         await _saveServicesToLocalStorage();
       } else {
-        // In offline mode, load from local storage
-        debugPrint('Working in offline mode, loading cached services');
+        // Load from local storage in offline mode
         await _loadServicesFromLocalStorage();
       }
+
+      _hasLoadedOnce = true;
+      _lastLoadTime = now;
     } catch (e) {
       debugPrint('Error loading services: $e');
-      _error = 'Failed to load services from server.';
+      _error = 'Failed to load services';
 
-      // Try to load from local storage
+      // Try to load from local storage as fallback
       await _loadServicesFromLocalStorage();
     } finally {
       _setLoading(false);
@@ -221,16 +248,124 @@ class ServiceProvider extends ChangeNotifier {
     }
   }
 
+  // Create a new service
+  Future<bool> createService(ServiceModel service) async {
+    _setLoading(true);
+    _error = null;
+
+    try {
+      final hasFirebaseAccess = await _checkFirebasePermissions();
+
+      if (hasFirebaseAccess) {
+        // Save to Realtime Database
+        await _database.ref('services/${service.id}').set(service.toJson());
+
+        // Add to local list
+        _services.add(service);
+        _services.sort((a, b) => a.title.compareTo(b.title));
+
+        // Save to local storage
+        await _saveServicesToLocalStorage();
+
+        _setLoading(false);
+        notifyListeners();
+        return true;
+      } else {
+        _error = 'Cannot create service in offline mode';
+        _setLoading(false);
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Error creating service: $e');
+      _error = 'Failed to create service';
+      _setLoading(false);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Update an existing service
+  Future<bool> updateService(ServiceModel service) async {
+    _setLoading(true);
+    _error = null;
+
+    try {
+      final hasFirebaseAccess = await _checkFirebasePermissions();
+
+      if (hasFirebaseAccess) {
+        // Update in Realtime Database
+        await _database.ref('services/${service.id}').update(service.toJson());
+
+        // Update local list
+        final index = _services.indexWhere((s) => s.id == service.id);
+        if (index != -1) {
+          _services[index] = service;
+          _services.sort((a, b) => a.title.compareTo(b.title));
+          await _saveServicesToLocalStorage();
+        }
+
+        _setLoading(false);
+        notifyListeners();
+        return true;
+      } else {
+        _error = 'Cannot update service in offline mode';
+        _setLoading(false);
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Error updating service: $e');
+      _error = 'Failed to update service';
+      _setLoading(false);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Delete a service
+  Future<bool> deleteService(String serviceId) async {
+    _setLoading(true);
+    _error = null;
+
+    try {
+      final hasFirebaseAccess = await _checkFirebasePermissions();
+
+      if (hasFirebaseAccess) {
+        // Delete from Realtime Database
+        await _database.ref('services/$serviceId').remove();
+
+        // Remove from local list
+        _services.removeWhere((s) => s.id == serviceId);
+        await _saveServicesToLocalStorage();
+
+        _setLoading(false);
+        notifyListeners();
+        return true;
+      } else {
+        _error = 'Cannot delete service in offline mode';
+        _setLoading(false);
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Error deleting service: $e');
+      _error = 'Failed to delete service';
+      _setLoading(false);
+      notifyListeners();
+      return false;
+    }
+  }
+
   // Select a service
   void selectService(ServiceModel service) {
     _selectedService = service;
-    // Reset other selections
     _selectedDesign = null;
     _selectedTier = TierType.basic;
     notifyListeners();
   }
 
-  // Select a design
+  // Select a material design
   void selectDesign(MaterialDesign? design) {
     _selectedDesign = design;
     notifyListeners();
@@ -242,310 +377,35 @@ class ServiceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Get tier pricing for selected service and tier
+  // Set area
+  void setArea(double area) {
+    _area = area;
+    notifyListeners();
+  }
+
+  // Get selected tier pricing
   TierPricing? getSelectedTierPricing() {
     if (_selectedService == null) return null;
 
-    try {
-      return _selectedService!.tiers.firstWhere(
-        (tier) => tier.tier == _selectedTier,
-        orElse: () => _selectedService!.tiers.first,
-      );
-    } catch (e) {
-      return null;
-    }
+    return _selectedService!.tiers.firstWhere(
+      (tier) => tier.tier == _selectedTier,
+      orElse: () => _selectedService!.tiers.first,
+    );
   }
 
-  // Calculate total price based on selected tier, material, and area
-  double calculateTotalPrice(double area) {
-    _area = area; // Store area for future reference
-    double totalPrice = 0;
+  // Calculate total price based on current selections
+  double calculateTotalPrice() {
+    if (_selectedService == null) return 0.0;
 
-    // Calculate base price from tier
-    final selectedTierPricing = getSelectedTierPricing();
-    if (selectedTierPricing != null) {
-      totalPrice += selectedTierPricing.price * area;
-    }
+    // Get the selected tier pricing
+    TierPricing? selectedTierPricing = getSelectedTierPricing();
 
-    // Add material price if applicable
-    if (_selectedService?.includesMaterial == true && _selectedDesign != null) {
-      totalPrice += _selectedDesign!.pricePerUnit * area;
-    }
+    if (selectedTierPricing == null) return 0.0;
 
-    return totalPrice;
-  }
+    double basePrice = selectedTierPricing.price;
+    double materialPrice = _selectedDesign?.pricePerUnit ?? 0.0;
+    double visitCharge = selectedTierPricing.visitCharge;
 
-  // Admin Functions
-  // Add a new service
-  Future<bool> addService(ServiceModel service) async {
-    _setLoading(true);
-    _error = null;
-
-    try {
-      // Check if we have Firebase access
-      bool hasFirebaseAccess = await _checkFirebasePermissions();
-
-      // Generate a new service with UUID
-      final String serviceId = const Uuid().v4();
-      final newService = ServiceModel(
-        id: serviceId,
-        title: service.title,
-        description: service.description,
-        type: service.type,
-        unit: service.unit,
-        includesMaterial: service.includesMaterial,
-        tiers: service.tiers,
-        designs: service.designs,
-        imageUrl: service.imageUrl,
-        categoryId: service.categoryId,
-      );
-
-      // Try to save to Firestore if we have access
-      if (hasFirebaseAccess) {
-        try {
-          await _databaseService.addService(service);
-        } catch (e) {
-          debugPrint('Error in database service when adding service: $e');
-          _isOfflineMode = true;
-        }
-      }
-
-      // Always update local state
-      _services.add(newService);
-
-      return true;
-    } catch (e) {
-      debugPrint('Error adding service: $e');
-      _error = 'Failed to add service. Service saved locally only.';
-      return false;
-    } finally {
-      _setLoading(false);
-      notifyListeners();
-    }
-  }
-
-  // Update a service
-  Future<bool> updateService(ServiceModel service) async {
-    _setLoading(true);
-    _error = null;
-
-    try {
-      // Check if we have Firebase access
-      bool hasFirebaseAccess = await _checkFirebasePermissions();
-
-      // Always update local state first
-      int index = _services.indexWhere((s) => s.id == service.id);
-      if (index != -1) {
-        _services[index] = service;
-      }
-
-      // If this is the selected service, update that too
-      if (_selectedService != null && _selectedService!.id == service.id) {
-        _selectedService = service;
-      }
-
-      // Try to update in Firestore if we have access
-      if (hasFirebaseAccess) {
-        try {
-          await _databaseService.updateService(service);
-        } catch (e) {
-          debugPrint('Error in database service when updating service: $e');
-          _isOfflineMode = true;
-          // We already updated local state, so continue
-        }
-      }
-
-      return true;
-    } catch (e) {
-      debugPrint('Error updating service: $e');
-      _error = 'Failed to update service in server. Changes saved locally.';
-      return false;
-    } finally {
-      _setLoading(false);
-      notifyListeners();
-    }
-  }
-
-  // Delete a service
-  Future<bool> deleteService(String serviceId) async {
-    _setLoading(true);
-    _error = null;
-
-    try {
-      // Check if we have Firebase access
-      bool hasFirebaseAccess = await _checkFirebasePermissions();
-
-      // Try to delete from Firestore if we have access
-      if (hasFirebaseAccess) {
-        try {
-          await _databaseService.deleteService(serviceId);
-        } catch (e) {
-          debugPrint('Error in database service when deleting service: $e');
-          _isOfflineMode = true;
-          // Continue to remove from local state
-        }
-      }
-
-      // Always update local state
-      _services.removeWhere((service) => service.id == serviceId);
-
-      // If this was the selected service, clear selection
-      if (_selectedService != null && _selectedService!.id == serviceId) {
-        _selectedService = null;
-        _selectedDesign = null;
-      }
-
-      return true;
-    } catch (e) {
-      debugPrint('Error deleting service: $e');
-      _error = 'Failed to delete service from server. Removed locally only.';
-
-      // Still remove from local state to maintain consistency
-      _services.removeWhere((service) => service.id == serviceId);
-
-      if (_selectedService != null && _selectedService!.id == serviceId) {
-        _selectedService = null;
-        _selectedDesign = null;
-      }
-
-      return false;
-    } finally {
-      _setLoading(false);
-      notifyListeners();
-    }
-  }
-
-  // Add tier to a service
-  Future<bool> addTierToService(String serviceId, TierPricing tier) async {
-    _setLoading(true);
-    _error = null;
-
-    try {
-      // Find the service in our local list
-      int serviceIndex = _services.indexWhere((s) => s.id == serviceId);
-      if (serviceIndex == -1) {
-        throw Exception('Service not found');
-      }
-
-      // Generate unique ID for tier
-      String tierId = const Uuid().v4();
-      TierPricing newTier = TierPricing(
-        id: tierId,
-        serviceId: serviceId,
-        tier: tier.tier,
-        price: tier.price,
-        warrantyMonths: tier.warrantyMonths,
-        features: tier.features,
-      );
-
-      // Update local service
-      ServiceModel service = _services[serviceIndex];
-      List<TierPricing> updatedTiers = [...service.tiers, newTier];
-      ServiceModel updatedService = service.copyWith(tiers: updatedTiers);
-
-      // Update in local list
-      _services[serviceIndex] = updatedService;
-
-      // If this is the selected service, update that too
-      if (_selectedService != null && _selectedService!.id == serviceId) {
-        _selectedService = updatedService;
-      }
-
-      // Check if we have Firebase access and try to update
-      bool hasFirebaseAccess = await _checkFirebasePermissions();
-      if (hasFirebaseAccess) {
-        try {
-          await _databaseService.addTierToService(serviceId, newTier);
-        } catch (e) {
-          debugPrint('Error in database service when adding tier: $e');
-          _isOfflineMode = true;
-          // We already updated local state, so continue
-        }
-      }
-
-      return true;
-    } catch (e) {
-      debugPrint('Error adding tier: $e');
-      _error = 'Failed to add tier to server. Changes saved locally.';
-      return false;
-    } finally {
-      _setLoading(false);
-      notifyListeners();
-    }
-  }
-
-  // Add design to a service
-  Future<bool> addDesignToService(
-    String serviceId,
-    MaterialDesign design,
-  ) async {
-    _setLoading(true);
-    _error = null;
-
-    try {
-      // Find the service in our local list
-      int serviceIndex = _services.indexWhere((s) => s.id == serviceId);
-      if (serviceIndex == -1) {
-        throw Exception('Service not found');
-      }
-
-      // Generate unique ID for design
-      String designId = const Uuid().v4();
-      MaterialDesign newDesign = MaterialDesign(
-        id: designId,
-        serviceId: serviceId,
-        imageUrl: design.imageUrl,
-        name: design.name,
-        pricePerUnit: design.pricePerUnit,
-      );
-
-      // Update local service
-      ServiceModel service = _services[serviceIndex];
-      List<MaterialDesign> updatedDesigns = [...service.designs, newDesign];
-      ServiceModel updatedService = service.copyWith(designs: updatedDesigns);
-
-      // Update in local list
-      _services[serviceIndex] = updatedService;
-
-      // If this is the selected service, update that too
-      if (_selectedService != null && _selectedService!.id == serviceId) {
-        _selectedService = updatedService;
-      }
-
-      // Check if we have Firebase access and try to update
-      bool hasFirebaseAccess = await _checkFirebasePermissions();
-      if (hasFirebaseAccess) {
-        try {
-          await _databaseService.addDesignToService(serviceId, newDesign);
-        } catch (e) {
-          debugPrint('Error in database service when adding design: $e');
-          _isOfflineMode = true;
-          // We already updated local state, so continue
-        }
-      }
-
-      return true;
-    } catch (e) {
-      debugPrint('Error adding design: $e');
-      _error = 'Failed to add design to server. Changes saved locally.';
-      return false;
-    } finally {
-      _setLoading(false);
-      notifyListeners();
-    }
-  }
-
-  // Reset error message
-  void clearError() {
-    _error = null;
-    notifyListeners();
-  }
-
-  // Reset selections
-  void resetSelections() {
-    _selectedService = null;
-    _selectedDesign = null;
-    _selectedTier = TierType.basic;
-    notifyListeners();
+    return (basePrice * _area) + (materialPrice * _area) + visitCharge;
   }
 }

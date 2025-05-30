@@ -51,8 +51,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget build(BuildContext context) {
     final adminProvider = Provider.of<AdminProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
-    final stats = adminProvider.stats;
-    final currentAdmin = adminProvider.currentAdmin;
+    final stats = adminProvider.dashboardStats;
+    final userName = authProvider.user?.name ?? 'Admin';
+
+    // If not admin, redirect to login
+    if (!adminProvider.isAdmin) {
+      Future.microtask(() => Navigator.of(context).pushReplacementNamed(LoginScreen.routeName));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -61,9 +69,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           IconButton(
             icon: const Icon(Icons.notifications),
             onPressed: () {
-              Navigator.of(
-                context,
-              ).pushNamed(AdminNotificationsPanel.routeName);
+              Navigator.of(context).pushNamed(AdminNotificationsPanel.routeName);
             },
             tooltip: 'Notifications',
           ),
@@ -72,37 +78,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             onPressed: () async {
               await authProvider.signOut();
               if (context.mounted) {
-                Navigator.of(
-                  context,
-                ).pushReplacementNamed(LoginScreen.routeName);
+                Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
               }
             },
             tooltip: 'Sign Out',
           ),
         ],
       ),
-      drawer: _buildAdminDrawer(currentAdmin?.isSuperAdmin ?? false),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                onRefresh: _loadDashboardData,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildWelcomeCard(currentAdmin?.name ?? 'Admin'),
-                      const SizedBox(height: 24),
-                      _buildStatisticsGrid(stats),
-                      const SizedBox(height: 24),
-                      _buildQuickAccessSection(),
-                      const SizedBox(height: 24),
-                      _buildRecentBookingsSection(),
-                    ],
-                  ),
+      drawer: _buildAdminDrawer(),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadDashboardData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildWelcomeCard(userName),
+                    const SizedBox(height: 24),
+                    _buildStatisticsGrid(stats),
+                    const SizedBox(height: 24),
+                    _buildQuickAccessSection(),
+                    const SizedBox(height: 24),
+                    _buildRecentBookingsSection(),
+                  ],
                 ),
               ),
+            ),
     );
   }
 
@@ -198,7 +201,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             _buildStatCard(
               title: 'Total Revenue',
               value: currencyFormatter.format(stats['totalRevenue'] ?? 0.0),
-              icon: Icons.currency_rupee,
+              icon: Icons.payments,
               color: Colors.purple,
             ),
           ],
@@ -214,40 +217,132 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     required Color color,
   }) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
+            Icon(icon, size: 32, color: color),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const DrawerHeader(
+            decoration: BoxDecoration(
+              color: AppConstants.primaryColor,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: color, size: 24),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                Icon(
+                  Icons.admin_panel_settings,
+                  size: 64,
+                  color: Colors.white,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Admin Panel',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
                   ),
                 ),
               ],
             ),
-            const Spacer(),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
-        ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.analytics),
+            title: const Text('Analytics'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, AdminAnalyticsScreen.routeName);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.people),
+            title: const Text('Manage Users'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, ManageUsersScreen.routeName);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.category),
+            title: const Text('Service Types'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, ManageServiceTypesScreen.routeName);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.home_repair_service),
+            title: const Text('Services'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, ManageServicesScreen.routeName);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.calendar_today),
+            title: const Text('Time Slots'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, ManageTimeSlotsScreen.routeName);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.book_online),
+            title: const Text('Bookings'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, ManageBookingsScreen.routeName);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.support_agent),
+            title: const Text('Support Requests'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, ManageSupportRequestsScreen.routeName);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.star),
+            title: const Text('Reviews'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, ViewReviewsScreen.routeName);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -261,78 +356,39 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _buildQuickAccessCard(
-                title: 'Manage Services',
-                icon: Icons.build,
-                color: Colors.blue,
-                onTap: () {
-                  Navigator.of(
-                    context,
-                  ).pushNamed(ManageServicesScreen.routeName);
-                },
-              ),
-              _buildQuickAccessCard(
-                title: 'Service Types',
-                icon: Icons.category,
-                color: Colors.teal,
-                onTap: () {
-                  Navigator.of(
-                    context,
-                  ).pushNamed(ManageServiceTypesScreen.routeName);
-                },
-              ),
-              _buildQuickAccessCard(
-                title: 'Manage Bookings',
-                icon: Icons.calendar_today,
-                color: Colors.orange,
-                onTap: () {
-                  Navigator.of(
-                    context,
-                  ).pushNamed(ManageBookingsScreen.routeName);
-                },
-              ),
-              _buildQuickAccessCard(
-                title: 'Time Slots',
-                icon: Icons.access_time,
-                color: Colors.green,
-                onTap: () {
-                  Navigator.of(
-                    context,
-                  ).pushNamed(ManageTimeSlotsScreen.routeName);
-                },
-              ),
-              _buildQuickAccessCard(
-                title: 'View Reviews',
-                icon: Icons.star,
-                color: Colors.amber,
-                onTap: () {
-                  Navigator.of(context).pushNamed(ViewReviewsScreen.routeName);
-                },
-              ),
-              _buildQuickAccessCard(
-                title: 'Manage Users',
-                icon: Icons.people,
-                color: Colors.purple,
-                onTap: () {
-                  Navigator.of(context).pushNamed(ManageUsersScreen.routeName);
-                },
-              ),
-              _buildQuickAccessCard(
-                title: 'Support Requests',
-                icon: Icons.support_agent,
-                color: Colors.teal,
-                onTap: () {
-                  Navigator.of(
-                    context,
-                  ).pushNamed(ManageSupportRequestsScreen.routeName);
-                },
-              ),
-            ],
-          ),
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            _buildQuickAccessCard(
+              title: 'Add Service',
+              icon: Icons.add_business,
+              onTap: () {
+                Navigator.pushNamed(context, ManageServicesScreen.routeName);
+              },
+            ),
+            _buildQuickAccessCard(
+              title: 'View Bookings',
+              icon: Icons.calendar_today,
+              onTap: () {
+                Navigator.pushNamed(context, ManageBookingsScreen.routeName);
+              },
+            ),
+            _buildQuickAccessCard(
+              title: 'Manage Users',
+              icon: Icons.people,
+              onTap: () {
+                Navigator.pushNamed(context, ManageUsersScreen.routeName);
+              },
+            ),
+            _buildQuickAccessCard(
+              title: 'Analytics',
+              icon: Icons.analytics,
+              onTap: () {
+                Navigator.pushNamed(context, AdminAnalyticsScreen.routeName);
+              },
+            ),
+          ],
         ),
       ],
     );
@@ -341,41 +397,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildQuickAccessCard({
     required String title,
     required IconData icon,
-    required Color color,
     required VoidCallback onTap,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
+    return InkWell(
+      onTap: onTap,
       child: Card(
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            width: 120,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  backgroundColor: color.withOpacity(0.2),
-                  radius: 24,
-                  child: Icon(icon, color: color, size: 24),
+        child: Container(
+          width: 150,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 32, color: AppConstants.primaryColor),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
       ),
@@ -383,7 +428,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildRecentBookingsSection() {
-    // This would typically fetch recent bookings from your provider
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -396,182 +440,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             TextButton(
               onPressed: () {
-                Navigator.of(context).pushNamed(ManageBookingsScreen.routeName);
+                Navigator.pushNamed(context, ManageBookingsScreen.routeName);
               },
               child: const Text('View All'),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(
-              child: Text(
-                'Recent bookings will appear here',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          ),
-        ),
+        // Add your recent bookings list here
       ],
-    );
-  }
-
-  Widget _buildAdminDrawer(bool isSuperAdmin) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          DrawerHeader(
-            decoration: const BoxDecoration(color: AppConstants.primaryColor),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.admin_panel_settings,
-                  color: Colors.white,
-                  size: 40,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Admin Panel',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  isSuperAdmin ? 'Super Admin' : 'Admin',
-                  style: const TextStyle(color: Colors.white70, fontSize: 16),
-                ),
-              ],
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.dashboard),
-            title: const Text('Dashboard'),
-            selected: true,
-            onTap: () {
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.home_repair_service),
-            title: const Text('Manage Services'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.of(context).pushNamed(ManageServicesScreen.routeName);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.category),
-            title: const Text('Manage Service Types'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.of(
-                context,
-              ).pushNamed(ManageServiceTypesScreen.routeName);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.calendar_today),
-            title: const Text('Manage Bookings'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.of(context).pushNamed(ManageBookingsScreen.routeName);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.access_time),
-            title: const Text('Manage Time Slots'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.of(context).pushNamed(ManageTimeSlotsScreen.routeName);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.star),
-            title: const Text('View Reviews'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.of(context).pushNamed(ViewReviewsScreen.routeName);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.people),
-            title: const Text('Manage Users'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.of(context).pushNamed(ManageUsersScreen.routeName);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.support_agent),
-            title: const Text('Support Requests'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.of(
-                context,
-              ).pushNamed(ManageSupportRequestsScreen.routeName);
-            },
-          ),
-          if (isSuperAdmin)
-            ListTile(
-              leading: const Icon(Icons.admin_panel_settings),
-              title: const Text('Manage Admins'),
-              onTap: () {
-                Navigator.pop(context);
-                // Navigate to admin management page
-              },
-            ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.analytics),
-            title: const Text('Analytics'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.of(context).pushNamed(AdminAnalyticsScreen.routeName);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.notifications),
-            title: const Text('Notifications'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.of(
-                context,
-              ).pushNamed(AdminNotificationsPanel.routeName);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.settings),
-            title: const Text('Settings'),
-            onTap: () {
-              Navigator.pop(context);
-              // Navigate to settings page
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.logout),
-            title: const Text('Sign Out'),
-            onTap: () async {
-              Navigator.pop(context);
-              await Provider.of<AuthProvider>(context, listen: false).signOut();
-              if (context.mounted) {
-                Navigator.of(
-                  context,
-                ).pushReplacementNamed(LoginScreen.routeName);
-              }
-            },
-          ),
-        ],
-      ),
     );
   }
 }

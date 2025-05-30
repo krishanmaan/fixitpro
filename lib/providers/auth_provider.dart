@@ -1,13 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:fixitpro/models/user_model.dart';
 import 'package:fixitpro/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum AuthStatus { uninitialized, authenticated, unauthenticated }
+enum AuthStatus { uninitialized, authenticated, unauthenticated, authenticating }
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
+  final FirebaseDatabase _database = FirebaseDatabase.instance;
 
   AuthStatus _status = AuthStatus.uninitialized;
   UserModel? _user;
@@ -61,17 +63,36 @@ class AuthProvider extends ChangeNotifier {
           notifyListeners();
         } else {
           try {
-            _user = await _authService.getUserData(firebaseUser.uid);
-            _status = AuthStatus.authenticated;
+            // Get user data from Realtime Database
+            final snapshot = await _database.ref('users/${firebaseUser.uid}').get();
+
+            if (snapshot.exists) {
+              final userData = snapshot.value as Map<dynamic, dynamic>;
+              _user = UserModel.fromJson({
+                ...Map<String, dynamic>.from(userData),
+                'id': firebaseUser.uid,
+              });
+              _status = AuthStatus.authenticated;
+            } else {
+              // For development - create a mock user if database access fails
+              debugPrint('Creating mock user for development during initialization');
+              _user = UserModel(
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName ?? 'User',
+                email: firebaseUser.email ?? 'user@example.com',
+                phone: firebaseUser.phoneNumber ?? '1234567890',
+                savedAddresses: _createMockAddresses(),
+                isAdmin: false,
+              );
+              _status = AuthStatus.authenticated;
+            }
           } catch (e) {
             debugPrint('Error getting user data: $e');
 
-            // For development - create a mock user if Firestore access fails
+            // For development - create a mock user if database access fails
             if (e.toString().contains('permission-denied') ||
                 e.toString().contains('not-found')) {
-              debugPrint(
-                'Creating mock user for development during initialization',
-              );
+              debugPrint('Creating mock user for development during initialization');
               _user = UserModel(
                 id: firebaseUser.uid,
                 name: firebaseUser.displayName ?? 'User',
@@ -102,34 +123,83 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // Register with email and password
-  Future<bool> register({
+  Future<void> register({
     required String name,
     required String email,
     required String phone,
     required String password,
   }) async {
-    _setLoading(true);
-    _error = null;
-
     try {
-      _user = await _authService.registerWithEmailAndPassword(
-        name: name,
+      _status = AuthStatus.authenticating;
+      _error = null;
+      notifyListeners();
+
+      // Create user with email and password
+      final userCredential = await _authService.createUserWithEmailAndPassword(
         email: email,
-        phone: phone,
         password: password,
       );
 
+      if (userCredential.user == null) {
+        throw firebase_auth.FirebaseAuthException(
+          code: 'null-user',
+          message: 'Failed to create user account',
+        );
+      }
+
+      // Check if this is the first user (make them an admin)
+      final adminSnapshot = await _database.ref('admins').get();
+      final isFirstUser = !adminSnapshot.exists;
+
+      // Create user model
+      final newUser = UserModel(
+        id: userCredential.user!.uid,
+        name: name,
+        email: email,
+        phone: phone,
+        savedAddresses: [],
+        isAdmin: isFirstUser, // First user becomes an admin
+      );
+
+      try {
+        // Create user document in Realtime Database
+        await _database.ref('users/${newUser.id}').set(newUser.toJson());
+        
+        // If this is the first user, add them to admins
+        if (isFirstUser) {
+          await _database.ref('admins/${newUser.id}').set({
+            'email': email,
+            'name': name,
+            'createdAt': ServerValue.timestamp,
+          });
+        }
+      } catch (dbError) {
+        debugPrint('Database error: $dbError');
+        // If database operation fails, delete the auth user
+        await userCredential.user?.delete();
+        throw firebase_auth.FirebaseAuthException(
+          code: 'permission-denied',
+          message: 'Failed to create user profile. Please check database permissions.',
+        );
+      }
+
+      // Update display name
+      await userCredential.user!.updateDisplayName(name);
+
+      // Set the user and update status
+      _user = newUser;
       _status = AuthStatus.authenticated;
-      _setLoading(false);
       notifyListeners();
-      return true;
     } catch (e) {
-      debugPrint('Register error: $e');
-      _error = _getReadableErrorMessage(e.toString());
+      debugPrint('Registration error: $e');
       _status = AuthStatus.unauthenticated;
-      _setLoading(false);
+      if (e is firebase_auth.FirebaseAuthException) {
+        _error = e.message ?? 'An error occurred during registration';
+      } else {
+        _error = e.toString();
+      }
       notifyListeners();
-      return false;
+      rethrow;
     }
   }
 
@@ -139,40 +209,71 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
 
     try {
-      _user = await _authService.loginWithEmailAndPassword(
+      debugPrint('Attempting login for email: $email');
+      
+      // Sign in with Firebase Auth
+      final userCredential = await _authService.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      _status = AuthStatus.authenticated;
+      if (userCredential.user == null) {
+        debugPrint('Login failed: No user returned');
+        throw 'Failed to sign in';
+      }
 
-      // Save login state
-      _saveLoginState();
+      debugPrint('Firebase Auth successful, getting user data...');
+      
+      // Get user data from Realtime Database
+      final snapshot = await _database.ref('users/${userCredential.user!.uid}').get();
 
-      _setLoading(false);
-      notifyListeners();
-      return true;
-    } catch (e) {
-      debugPrint('Login error: $e');
+      if (snapshot.exists) {
+        final userData = snapshot.value as Map<dynamic, dynamic>;
+        debugPrint('User data found: ${userData.toString()}');
+        debugPrint('isAdmin status: ${userData['isAdmin']}');
+        
+        _user = UserModel.fromJson({
+          ...Map<String, dynamic>.from(userData),
+          'id': userCredential.user!.uid,
+        });
 
-      // For development - create a mock user when Firebase access fails
-      if (e.toString().contains('permission-denied') ||
-          e.toString().contains('not-found')) {
-        debugPrint('Creating mock user for development');
-        _user = UserModel(
-          id: 'mock-user-id',
-          name: 'Mock User',
-          email: email,
-          phone: '1234567890',
-          savedAddresses: _createMockAddresses(),
-          isAdmin: true,
-        );
+        // Double check admin status in admins collection
+        if (_user?.isAdmin == true) {
+          debugPrint('User marked as admin, verifying admin status...');
+          final adminSnapshot = await _database.ref('admins/${userCredential.user!.uid}').get();
+          if (!adminSnapshot.exists) {
+            debugPrint('Warning: User marked as admin but no admin document found');
+            // Create admin document
+            await _database.ref('admins/${userCredential.user!.uid}').set({
+              'email': email,
+              'name': _user?.name ?? '',
+              'createdAt': ServerValue.timestamp,
+            });
+            debugPrint('Created admin document');
+          } else {
+            debugPrint('Admin document verified');
+          }
+        }
+
         _status = AuthStatus.authenticated;
+
+        // Save login state
+        _saveLoginState();
+
+        debugPrint('Login successful, isAdmin: ${_user?.isAdmin}');
+        
         _setLoading(false);
         notifyListeners();
         return true;
+      } else {
+        debugPrint('No user data found in database');
+        throw firebase_auth.FirebaseAuthException(
+          code: 'not-found',
+          message: 'User profile not found in database',
+        );
       }
-
+    } catch (e) {
+      debugPrint('Login error: $e');
       _error = _getReadableErrorMessage(e.toString());
       _status = AuthStatus.unauthenticated;
       _setLoading(false);
@@ -380,7 +481,10 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _saveLoginState() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_logged_in', true);
+      await prefs.setBool('isLoggedIn', true);
+      if (_user != null) {
+        await prefs.setString('userData', _user!.toJson().toString());
+      }
     } catch (e) {
       debugPrint('Error saving login state: $e');
     }
@@ -390,7 +494,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _clearLoginState() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_logged_in', false);
+      await prefs.setBool('isLoggedIn', false);
     } catch (e) {
       debugPrint('Error clearing login state: $e');
     }

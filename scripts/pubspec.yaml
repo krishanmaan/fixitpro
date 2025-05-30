@@ -1,0 +1,9 @@
+name: fixitpro_db_init
+description: Database initialization script for FixitPro
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  firebase_core: ^2.24.2
+  firebase_database: ^10.4.0 

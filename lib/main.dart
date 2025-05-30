@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:fixitpro/constants/app_theme.dart';
 import 'package:fixitpro/firebase_options.dart';
@@ -44,6 +45,15 @@ import 'package:fixitpro/models/booking_model.dart';
 void main() async {
   // Ensure widgets are initialized
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Set system UI overlay style
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+    ),
+  );
 
   // Initialize Firebase and services
   bool firebaseInitialized = false;
@@ -98,10 +108,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProxyProvider<AuthProvider, ServiceProvider>(
           create: (_) => ServiceProvider(),
           update: (_, authProvider, serviceProvider) {
-            // Initialize services when auth changes
-            if (authProvider.isAuthenticated &&
-                serviceProvider != null &&
-                !serviceProvider.hasLoaded) {
+            // Initialize services regardless of auth state
+            if (serviceProvider != null && !serviceProvider.hasLoaded) {
               serviceProvider.loadServices();
             }
             return serviceProvider ?? ServiceProvider();
@@ -141,10 +149,7 @@ class MyApp extends StatelessWidget {
             builder: (context, child) {
               // Add global wrapper for better layout
               return MediaQuery(
-                // Adjust padding to avoid overflow issues
-                data: MediaQuery.of(context).copyWith(
-                  padding: MediaQuery.of(context).padding.copyWith(top: 0),
-                ),
+                data: MediaQuery.of(context),
                 child: Column(
                   children: [
                     if (!firebaseInitialized)
@@ -246,7 +251,10 @@ class MyApp extends StatelessWidget {
                   (context) => const BookingHistoryScreen(),
               BookingDetailScreen.routeName:
                   (context) => const BookingDetailScreen(),
-              AddReviewScreen.routeName: (context) => const AddReviewScreen(),
+              AddReviewScreen.routeName: (context) {
+                final args = ModalRoute.of(context)!.settings.arguments as String;
+                return AddReviewScreen(bookingId: args);
+              },
               RescheduleScreen.routeName: (context) => const RescheduleScreen(),
 
               // Admin

@@ -97,25 +97,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       try {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final success = await authProvider.register(
+        await authProvider.register(
           name: _nameController.text.trim(),
           email: _emailController.text.trim(),
           phone: _phoneController.text.trim(),
           password: _passwordController.text,
         );
-
-        if (!success && mounted) {
-          setState(() {
-            _errorMessage = authProvider.error;
-            _isLoading = false;
-          });
+        
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/');
         }
       } catch (e) {
         if (mounted) {
-          setState(() {
-            _errorMessage = e.toString();
-            _isLoading = false;
-          });
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(authProvider.error ?? 'Registration failed'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
     }

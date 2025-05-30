@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -8,22 +9,22 @@ import 'package:fixitpro/models/booking_model.dart';
 
 /// Interface for Firebase service to enable better testability
 abstract class IFirebaseService {
-  FirebaseFirestore get firestore;
+  FirebaseDatabase get database;
   FirebaseAuth get auth;
   FirebaseStorage get storage;
   bool get isOfflineMode;
 
   Future<void> initialize();
   Future<bool> checkConnectivity();
-  Future<bool> checkCollection(String collectionPath);
+  Future<bool> checkCollection(String path);
   Future<bool> checkAdminAccess();
   Future<bool> isTimeSlotAvailable(String slotId);
   Future<bool> markTimeSlotAsBooked(String slotId, String bookingId);
   Future<List<BookingModel>> loadBookings(String userId);
+  Future<List<BookingModel>> getTimeSlotsForDate(DateTime date);
 
-  // New methods to handle permission errors
   void setOfflineMode(bool isOffline);
-  Future<T> safeFirestoreOperation<T>(
+  Future<T> safeRealtimeDatabaseOperation<T>(
     Future<T> Function() operation,
     T defaultValue,
   );
@@ -37,7 +38,7 @@ class FirebaseService implements IFirebaseService {
   FirebaseService._internal();
 
   // Firebase instances
-  late final FirebaseFirestore _firestore;
+  late final FirebaseDatabase _database;
   late final FirebaseAuth _auth;
   late final FirebaseStorage _storage;
 
@@ -46,7 +47,7 @@ class FirebaseService implements IFirebaseService {
 
   // Public getters
   @override
-  FirebaseFirestore get firestore => _firestore;
+  FirebaseDatabase get database => _database;
 
   @override
   FirebaseAuth get auth => _auth;
@@ -65,46 +66,34 @@ class FirebaseService implements IFirebaseService {
     );
   }
 
-  // Generic method to safely execute Firestore operations with error handling
-  @override
-  Future<T> safeFirestoreOperation<T>(
-    Future<T> Function() operation,
-    T defaultValue,
-  ) async {
-    if (_isOfflineMode) {
-      return defaultValue;
-    }
-
-    try {
-      final result = await operation();
-      return result;
-    } on FirebaseException catch (e) {
-      if (e.code == 'permission-denied') {
-        debugPrint('Permission denied in Firestore operation: ${e.message}');
-        setOfflineMode(true);
-      } else {
-        debugPrint('Firebase error in operation: ${e.code} - ${e.message}');
-      }
-      return defaultValue;
-    } catch (e) {
-      debugPrint('Error in Firestore operation: $e');
-      return defaultValue;
-    }
-  }
-
   // Initialize the service - must be called after Firebase.initializeApp()
   @override
   Future<void> initialize() async {
     try {
-      _firestore = FirebaseFirestore.instance;
+      _database = FirebaseDatabase.instance;
       _auth = FirebaseAuth.instance;
       _storage = FirebaseStorage.instance;
 
-      // Configure Firestore settings for offline persistence
-      _firestore.settings = const Settings(
-        persistenceEnabled: true,
-        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-      );
+      // Configure Realtime Database for offline persistence
+      _database.setPersistenceEnabled(true);
+      _database.setPersistenceCacheSizeBytes(10000000); // 10MB cache
+
+      // Enable logging in debug mode
+      if (kDebugMode) {
+        FirebaseDatabase.instance.setLoggingEnabled(true);
+      }
+
+      // Test database connection
+      try {
+        final ref = _database.ref('.info/connected');
+        ref.onValue.listen((event) {
+          final connected = event.snapshot.value as bool? ?? false;
+          debugPrint('Firebase Realtime Database connection state: ${connected ? 'connected' : 'disconnected'}');
+          _isOfflineMode = !connected;
+        });
+      } catch (e) {
+        debugPrint('Error setting up database connection listener: $e');
+      }
 
       debugPrint('Firebase service initialized successfully');
 
@@ -121,6 +110,60 @@ class FirebaseService implements IFirebaseService {
     }
   }
 
+  // Generic method to safely execute Realtime Database operations with error handling
+  @override
+  Future<T> safeRealtimeDatabaseOperation<T>(
+    Future<T> Function() operation,
+    T defaultValue,
+  ) async {
+    if (_isOfflineMode) {
+      debugPrint('Operation attempted in offline mode - returning default value');
+      return defaultValue;
+    }
+
+    try {
+      debugPrint('Starting database operation...');
+      final result = await operation();
+      debugPrint('Database operation completed successfully');
+      return result;
+    } on FirebaseException catch (e) {
+      debugPrint('Firebase error details:');
+      debugPrint('Code: ${e.code}');
+      debugPrint('Message: ${e.message}');
+      debugPrint('Stack trace: ${e.stackTrace}');
+
+      if (e.code == 'permission-denied') {
+        debugPrint('Permission denied - Current user ID: ${_auth.currentUser?.uid}');
+        debugPrint('Permission denied in Realtime Database operation. Check your database rules.');
+        
+        // Try to get the current user's admin status for debugging
+        try {
+          final userRef = _database.ref('users/${_auth.currentUser?.uid}');
+          final userSnapshot = await userRef.get();
+          if (userSnapshot.exists) {
+            final userData = userSnapshot.value as Map<dynamic, dynamic>;
+            debugPrint('User admin status: ${userData['isAdmin']}');
+          } else {
+            debugPrint('User document not found');
+          }
+        } catch (innerError) {
+          debugPrint('Error checking user status: $innerError');
+        }
+        
+        setOfflineMode(true);
+      } else {
+        debugPrint('Firebase error in operation: ${e.code} - ${e.message}');
+      }
+      return defaultValue;
+    } catch (e, stackTrace) {
+      debugPrint('Error in Realtime Database operation:');
+      debugPrint(e.toString());
+      debugPrint('Stack trace:');
+      debugPrint(stackTrace.toString());
+      return defaultValue;
+    }
+  }
+
   // Check if Firebase connectivity is working
   @override
   Future<bool> checkConnectivity() async {
@@ -129,23 +172,17 @@ class FirebaseService implements IFirebaseService {
     }
 
     try {
-      // Simple connectivity test - try to get the user's own document
-      await _firestore
-          .collection('users')
-          .doc(_auth.currentUser!.uid)
-          .get()
-          .timeout(const Duration(seconds: 5));
+      // Simple connectivity test - try to get the user's own data
+      final ref = _database.ref('users/${_auth.currentUser!.uid}');
+      await ref.get();
       _isOfflineMode = false;
       return true;
     } catch (e) {
-      // Handle specific errors differently
       if (e is FirebaseException) {
         if (e.code == 'permission-denied') {
           debugPrint(
             'Permission denied while checking connectivity - this might be expected if rules are strict',
           );
-          // User is authenticated but lacks permission to read their own document
-          // This might be expected in some security rule configurations
           _isOfflineMode = false;
           return true;
         } else if (e.code == 'unavailable' ||
@@ -162,38 +199,77 @@ class FirebaseService implements IFirebaseService {
     }
   }
 
-  // Check if a specific collection is accessible
+  // Check if a specific path is accessible
   @override
-  Future<bool> checkCollection(String collectionPath) async {
+  Future<bool> checkCollection(String path) async {
     if (_isOfflineMode) {
       return false;
     }
 
-    return await safeFirestoreOperation<bool>(() async {
-      await _firestore
-          .collection(collectionPath)
-          .limit(1)
-          .get()
-          .timeout(const Duration(seconds: 5));
-      return true;
+    return await safeRealtimeDatabaseOperation<bool>(() async {
+      final ref = _database.ref(path);
+      final snapshot = await ref.limitToFirst(1).get();
+      return snapshot.exists;
     }, false);
   }
 
   // Check if the current user has admin access
   @override
   Future<bool> checkAdminAccess() async {
-    if (_auth.currentUser == null || _isOfflineMode) return false;
+    debugPrint('Checking admin access...');
+    if (_auth.currentUser == null) {
+      debugPrint('No user is logged in');
+      return false;
+    }
 
-    return await safeFirestoreOperation<bool>(() async {
-      final userDoc = await _firestore
-          .collection('users')
-          .doc(_auth.currentUser!.uid)
-          .get()
-          .timeout(const Duration(seconds: 5));
+    return await safeRealtimeDatabaseOperation<bool>(() async {
+      final userId = _auth.currentUser!.uid;
+      debugPrint('Checking admin status for user: $userId');
+      
+      // First check if user exists and is admin
+      final userSnapshot = await _database.ref('users/$userId').get();
+      
+      if (!userSnapshot.exists) {
+        debugPrint('User document not found');
+        return false;
+      }
+      
+      final userData = userSnapshot.value as Map<dynamic, dynamic>;
+      final isAdmin = userData['isAdmin'] == true;
+      
+      debugPrint('User isAdmin status: $isAdmin');
+      
+      if (!isAdmin) {
+        debugPrint('User is not marked as admin');
+        return false;
+      }
 
-      if (!userDoc.exists) return false;
+      // Verify admin document exists
+      final adminSnapshot = await _database.ref('admins/$userId').get();
+      final hasAdminDoc = adminSnapshot.exists;
+      debugPrint('Admin document exists: $hasAdminDoc');
 
-      return userDoc.data()?['isAdmin'] == true;
+      if (!hasAdminDoc) {
+        // Create admin document if it doesn't exist
+        debugPrint('Creating admin document...');
+        try {
+          await _database.ref('admins/$userId').set({
+            'id': userId,
+            'name': userData['name'] ?? 'Admin User',
+            'email': userData['email'] ?? _auth.currentUser?.email ?? '',
+            'phoneNumber': userData['phone'] ?? '',
+            'isSuperAdmin': false,
+            'createdAt': ServerValue.timestamp,
+          });
+          debugPrint('Admin document created successfully');
+          return true;
+        } catch (e) {
+          debugPrint('Error creating admin document: $e');
+          return false;
+        }
+      }
+
+      return true;
     }, false);
   }
 
@@ -205,124 +281,68 @@ class FirebaseService implements IFirebaseService {
       return true;
     }
 
-    return await safeFirestoreOperation<bool>(() async {
-      // Get the time slot document
-      final docSnapshot =
-          await _firestore.collection('timeSlots').doc(slotId).get();
+    return await safeRealtimeDatabaseOperation<bool>(() async {
+      final ref = _database.ref('timeSlots/$slotId');
+      final snapshot = await ref.get();
 
-      if (!docSnapshot.exists) {
-        // Time slot doesn't exist yet, so it's available
+      if (!snapshot.exists) {
         return true;
       }
 
-      final data = docSnapshot.data();
-      if (data == null) return false;
-
-      // Check status from the time slot document
-      final status = data['status'];
-      if (status != 'SlotStatus.available') {
+      final data = snapshot.value as Map<dynamic, dynamic>;
+      if (data['status'] != 'SlotStatus.available') {
         return false;
       }
 
       // Check if any bookings exist with this time slot
-      final bookingExists = await hasExistingBookingForTimeSlot(slotId);
+      final bookingRef = _database.ref('bookings');
+      final bookingQuery = bookingRef.orderByChild('timeSlotId').equalTo(slotId);
+      final bookingSnapshot = await bookingQuery.get();
 
-      // Only available if the slot is marked available and no booking exists for it
-      return !bookingExists;
-    }, true); // Default to true in case of error to enable offline booking
+      return !bookingSnapshot.exists;
+    }, true);
   }
 
-  // Helper method to check if any bookings already exist with this time slot
-  Future<bool> hasExistingBookingForTimeSlot(String slotId) async {
+  // Mark a time slot as booked
+  @override
+  Future<bool> markTimeSlotAsBooked(String slotId, String bookingId) async {
     if (_isOfflineMode) return false;
 
-    return await safeFirestoreOperation<bool>(() async {
-      final querySnapshot =
-          await _firestore
-              .collection('bookings')
-              .where('timeSlot.id', isEqualTo: slotId)
-              .where(
-                'status',
-                whereIn: [
-                  'BookingStatus.pending',
-                  'BookingStatus.confirmed',
-                  'BookingStatus.inProgress',
-                ],
-              )
-              .limit(1)
-              .get();
-
-      return querySnapshot.docs.isNotEmpty;
+    return await safeRealtimeDatabaseOperation<bool>(() async {
+      final ref = _database.ref('timeSlots/$slotId');
+      await ref.update({
+        'status': 'SlotStatus.booked',
+        'bookingId': bookingId,
+        'updatedAt': ServerValue.timestamp,
+      });
+      return true;
     }, false);
   }
 
-  // Mark a time slot as booked in a transaction to prevent race conditions
-  @override
-  Future<bool> markTimeSlotAsBooked(String slotId, String bookingId) async {
-    if (_isOfflineMode) {
-      // In offline mode, pretend this succeeded
-      return true;
-    }
-
-    return await safeFirestoreOperation<bool>(() async {
-      // Use a transaction to ensure atomic updates
-      return await _firestore.runTransaction<bool>((transaction) async {
-        // Get the time slot document
-        final docSnapshot = await transaction.get(
-          _firestore.collection('timeSlots').doc(slotId),
-        );
-
-        // Create new time slot if it doesn't exist
-        if (!docSnapshot.exists) {
-          transaction.set(_firestore.collection('timeSlots').doc(slotId), {
-            'id': slotId,
-            'status': 'SlotStatus.booked',
-            'bookingId': bookingId,
-            'lastUpdated': FieldValue.serverTimestamp(),
-          });
-          return true;
-        }
-
-        // Check if the slot is already booked
-        final data = docSnapshot.data()!;
-        final currentStatus = data['status'];
-        if (currentStatus != 'SlotStatus.available') {
-          debugPrint(
-            'Time slot is already booked: $slotId, status: $currentStatus',
-          );
-          return false;
-        }
-
-        // Update the document with the new status
-        transaction.update(_firestore.collection('timeSlots').doc(slotId), {
-          'status': 'SlotStatus.booked',
-          'bookingId': bookingId,
-          'lastUpdated': FieldValue.serverTimestamp(),
-        });
-
-        return true;
-      });
-    }, true); // Default to true to allow offline booking
-  }
-
+  // Load bookings for a user
   @override
   Future<List<BookingModel>> loadBookings(String userId) async {
     if (_isOfflineMode) {
       return _loadBookingsFromLocalStorage(userId);
     }
 
-    final bookings = await safeFirestoreOperation<List<BookingModel>>(() async {
-      final snapshot =
-          await _firestore
-              .collection('bookings')
-              .where('userId', isEqualTo: userId)
-              .orderBy('createdAt', descending: true)
-              .get();
+    final bookings = await safeRealtimeDatabaseOperation<List<BookingModel>>(() async {
+      final ref = _database.ref('bookings');
+      final query = ref.orderByChild('userId').equalTo(userId);
+      final snapshot = await query.get();
 
-      final bookings =
-          snapshot.docs
-              .map((doc) => BookingModel.fromJson(doc.data()))
-              .toList();
+      if (!snapshot.exists) return [];
+
+      final bookingsData = snapshot.value as Map<dynamic, dynamic>;
+      final List<BookingModel> bookings = [];
+
+      bookingsData.forEach((key, value) {
+        final booking = BookingModel.fromJson(Map<String, dynamic>.from(value));
+        bookings.add(booking);
+      });
+
+      // Sort bookings by createdAt in descending order
+      bookings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       // Cache the bookings for offline use
       await _saveBookingsToLocalStorage(userId, bookings);
@@ -335,78 +355,19 @@ class FirebaseService implements IFirebaseService {
         : bookings;
   }
 
-  // Load time slots for a specific date
-  Future<List<TimeSlot>> getTimeSlotsForDate(DateTime date) async {
-    // Format date for querying
-    final dateStr =
-        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-    if (_isOfflineMode) {
-      return _loadTimeSlotsFromLocalStorage(dateStr);
-    }
-
-    return await safeFirestoreOperation<List<TimeSlot>>(() async {
-      // Query Firestore for time slots on this date
-      final querySnapshot =
-          await _firestore
-              .collection('timeSlots')
-              .where('dateStr', isEqualTo: dateStr)
-              .get();
-
-      final slots =
-          querySnapshot.docs.map((doc) {
-            final data = doc.data();
-            // Convert the time slot data to our model
-            return TimeSlot(
-              id: doc.id,
-              date:
-                  data['date'] is Timestamp
-                      ? (data['date'] as Timestamp).toDate()
-                      : DateTime.parse(data['date']),
-              time: data['time'] as String,
-              status:
-                  data['status'] == 'SlotStatus.available'
-                      ? SlotStatus.available
-                      : SlotStatus.booked,
-            );
-          }).toList();
-
-      // Cache the slots
-      await _saveTimeSlotsToLocalStorage(dateStr, slots);
-
-      return slots;
-    }, <TimeSlot>[]);
-  }
-
-  // Helper method to save time slots to local storage
-  Future<void> _saveTimeSlotsToLocalStorage(
-    String dateStr,
-    List<TimeSlot> slots,
-  ) async {
+  // Helper method to load bookings from local storage
+  Future<List<BookingModel>> _loadBookingsFromLocalStorage(String userId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final slotsJson = slots.map((slot) => slot.toJson()).toList();
-      await prefs.setString('timeSlots_$dateStr', jsonEncode(slotsJson));
-    } catch (e) {
-      debugPrint('Error saving time slots to local storage: $e');
-    }
-  }
+      final String? bookingsJson = prefs.getString('bookings_$userId');
+      if (bookingsJson == null) return [];
 
-  // Helper method to load time slots from local storage
-  Future<List<TimeSlot>> _loadTimeSlotsFromLocalStorage(String dateStr) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final slotsJson = prefs.getString('timeSlots_$dateStr');
-      if (slotsJson == null || slotsJson.isEmpty) {
-        return [];
-      }
-
-      final slotsData = jsonDecode(slotsJson) as List;
-      return slotsData
-          .map((data) => TimeSlot.fromJson(data as Map<String, dynamic>))
+      final List<dynamic> bookingsList = jsonDecode(bookingsJson);
+      return bookingsList
+          .map((json) => BookingModel.fromJson(json))
           .toList();
     } catch (e) {
-      debugPrint('Error loading time slots from local storage: $e');
+      debugPrint('Error loading bookings from local storage: $e');
       return [];
     }
   }
@@ -418,31 +379,40 @@ class FirebaseService implements IFirebaseService {
   ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final bookingsJson = bookings.map((booking) => booking.toJson()).toList();
-      await prefs.setString('bookings_$userId', jsonEncode(bookingsJson));
+      final String bookingsJson = jsonEncode(
+        bookings.map((booking) => booking.toJson()).toList(),
+      );
+      await prefs.setString('bookings_$userId', bookingsJson);
     } catch (e) {
       debugPrint('Error saving bookings to local storage: $e');
     }
   }
 
-  // Helper method to load bookings from local storage
-  Future<List<BookingModel>> _loadBookingsFromLocalStorage(
-    String userId,
-  ) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final bookingsJson = prefs.getString('bookings_$userId');
-      if (bookingsJson == null || bookingsJson.isEmpty) {
+  // Get time slots for a specific date
+  @override
+  Future<List<BookingModel>> getTimeSlotsForDate(DateTime date) async {
+    if (_isOfflineMode) {
+      return [];
+    }
+
+    final dateStr = date.toIso8601String().split('T')[0];
+
+    return await safeRealtimeDatabaseOperation<List<BookingModel>>(() async {
+      final ref = _database.ref('timeSlots').orderByChild('dateStr').equalTo(dateStr);
+      final snapshot = await ref.get();
+
+      if (!snapshot.exists) {
         return [];
       }
 
-      final bookingsData = jsonDecode(bookingsJson) as List;
-      return bookingsData
-          .map((data) => BookingModel.fromJson(data as Map<String, dynamic>))
-          .toList();
-    } catch (e) {
-      debugPrint('Error loading bookings from local storage: $e');
-      return [];
-    }
+      final slotsData = snapshot.value as Map<dynamic, dynamic>;
+      return slotsData.entries.map((entry) {
+        final data = entry.value as Map<dynamic, dynamic>;
+        return BookingModel.fromJson({
+          ...data,
+          'id': entry.key,
+        });
+      }).toList();
+    }, []);
   }
 }
