@@ -9,7 +9,7 @@ import 'package:fixitpro/widgets/custom_button.dart';
 class ServiceDetailScreen extends StatefulWidget {
   static const String routeName = '/service-detail';
 
-  const ServiceDetailScreen({super.key});
+  const ServiceDetailScreen({Key? key}) : super(key: key);
 
   @override
   State<ServiceDetailScreen> createState() => _ServiceDetailScreenState();
@@ -159,12 +159,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: AppConstants.primaryColor.withValues(
-                            alpha: 0.1 * 255,
-                            red: ((AppConstants.primaryColor.r * 255.0).round() & 0xff).toDouble(),
-                            green: ((AppConstants.primaryColor.g * 255.0).round() & 0xff).toDouble(),
-                            blue: ((AppConstants.primaryColor.b * 255.0).round() & 0xff).toDouble(),
-                          ),
+                          color: AppConstants.primaryColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -413,12 +408,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(
-                alpha: 0.1 * 255,
-                red: 0.0,
-                green: 0.0,
-                blue: 0.0,
-              ),
+              color: Colors.black.withOpacity(0.1),
               blurRadius: 10,
               offset: const Offset(0, -5),
             ),
@@ -681,6 +671,8 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         return 'Standard';
       case TierType.premium:
         return 'Premium';
+      default:
+        return 'Basic';
     }
   }
 }

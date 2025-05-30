@@ -131,7 +131,7 @@ class CrashlyticsService {
       }
     } catch (e) {
       // This will be recorded by Crashlytics due to the error handlers
-      rethrow;
+      throw e;
     }
   }
 }

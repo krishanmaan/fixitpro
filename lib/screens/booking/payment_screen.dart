@@ -17,10 +17,10 @@ class PaymentScreen extends StatefulWidget {
   final double amount;
 
   const PaymentScreen({
-    super.key,
+    Key? key,
     required this.pendingBooking,
     required this.amount,
-  });
+  }) : super(key: key);
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -253,7 +253,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  color: AppConstants.primaryColor,
+                  color: AppConstants.primaryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                   image:
                       widget.pendingBooking.serviceImage.isNotEmpty
@@ -305,7 +305,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
           _summaryRow(
             'Date',
-            DateFormat('EEEE, MMMM d, yyyy').format(widget.pendingBooking.timeSlot.date),
+            '${DateFormat('EEEE, MMMM d, yyyy').format(widget.pendingBooking.timeSlot.date)}',
           ),
           _summaryRow('Time', widget.pendingBooking.timeSlot.time),
           _summaryRow('Address', widget.pendingBooking.address.address),
@@ -443,7 +443,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppConstants.primaryColor,
+              color: AppConstants.primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Column(
@@ -625,7 +625,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: AppConstants.primaryColor,
+                      color: AppConstants.primaryColor.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(methodIcon, color: AppConstants.primaryColor),

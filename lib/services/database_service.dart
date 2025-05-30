@@ -13,7 +13,7 @@ class DatabaseService {
   Stream<List<ServiceModel>> getServicesStream() {
     return _firestore.collection('services').snapshots().map((snapshot) {
       return snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data();
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         return ServiceModel.fromJson(data);
       }).toList();
     });
@@ -200,7 +200,7 @@ class DatabaseService {
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
-            Map<String, dynamic> data = doc.data();
+            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
             return BookingModel.fromJson(data);
           }).toList();
         });
@@ -215,7 +215,7 @@ class DatabaseService {
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
-            Map<String, dynamic> data = doc.data();
+            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
             return BookingModel.fromJson(data);
           }).toList();
         });
@@ -400,7 +400,7 @@ class DatabaseService {
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
-            Map<String, dynamic> data = doc.data();
+            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
             return ReviewModel.fromJson(data);
           }).toList();
         });
@@ -415,7 +415,7 @@ class DatabaseService {
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
-            Map<String, dynamic> data = doc.data();
+            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
             return ReviewModel.fromJson(data);
           }).toList();
         });
@@ -516,7 +516,7 @@ class DatabaseService {
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
-            Map<String, dynamic> data = doc.data();
+            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
             return TimeSlot.fromJson(data);
           }).toList();
         });

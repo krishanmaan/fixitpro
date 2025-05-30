@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:fixitpro/models/user_model.dart';
 import 'package:fixitpro/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:provider/provider.dart';
-import 'package:fixitpro/providers/booking_provider.dart';
 
 enum AuthStatus { uninitialized, authenticated, unauthenticated }
 
@@ -249,23 +247,13 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // Sign out
-  Future<void> signOut(BuildContext context) async {
+  Future<void> signOut() async {
     _setLoading(true);
-
-    // Get the provider before the async gap
-    final bookingProvider = Provider.of<BookingProvider>(
-      context,
-      listen: false,
-    );
 
     try {
       await _authService.signOut();
       _status = AuthStatus.unauthenticated;
       _user = null;
-      
-      // Clear bookings
-      bookingProvider.clearBookings();
-
       // Clear saved login state
       _clearLoginState();
 

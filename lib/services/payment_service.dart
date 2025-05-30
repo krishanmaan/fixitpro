@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fixitpro/models/booking_model.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:async';
 
@@ -10,7 +11,7 @@ enum PaymentStatus { pending, processing, completed, failed, cancelled }
 
 class PaymentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth auth = FirebaseAuth.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   final uuid = Uuid();
 
   // Process payment based on the selected method

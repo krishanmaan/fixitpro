@@ -11,7 +11,7 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 class AddReviewScreen extends StatefulWidget {
   static const String routeName = '/add-review';
 
-  const AddReviewScreen({super.key});
+  const AddReviewScreen({Key? key}) : super(key: key);
 
   @override
   State<AddReviewScreen> createState() => _AddReviewScreenState();
@@ -158,7 +158,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                 Container(
                   padding: const EdgeInsets.all(AppConstants.smallPadding),
                   decoration: BoxDecoration(
-                    color: AppConstants.errorColor,
+                    color: AppConstants.errorColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(
                       AppConstants.defaultBorderRadius,
                     ),

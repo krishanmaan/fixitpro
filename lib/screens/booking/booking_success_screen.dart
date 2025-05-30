@@ -141,24 +141,6 @@ Thank you for choosing FixItPro! 🔧
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Booking status chip
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Color(int.parse(_getStatusColor(widget.booking.status).substring(1), radix: 16) | 0xFF000000),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  widget.booking.status.toString().split('.').last.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Color(int.parse(_getStatusColor(widget.booking.status).substring(1), radix: 16) | 0xFF000000),
-                  ),
-                ),
-              ),
-
               // Payment success banner
               Container(
                 width: double.infinity,

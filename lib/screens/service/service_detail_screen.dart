@@ -7,7 +7,8 @@ import 'package:fixitpro/screens/booking/booking_screen.dart';
 class ServiceDetailScreen extends StatelessWidget {
   final ServiceModel service;
 
-  const ServiceDetailScreen({super.key, required this.service});
+  const ServiceDetailScreen({Key? key, required this.service})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -121,7 +122,7 @@ class ServiceDetailScreen extends StatelessWidget {
                                             ),
                                           ),
                                         )
-                                        ,
+                                        .toList(),
                                   ],
                                 ),
                               const SizedBox(height: 8),
@@ -233,7 +234,8 @@ class ServiceDetailScreen extends StatelessWidget {
         return 'Standard';
       case TierType.premium:
         return 'Premium';
-    
+      default:
+        return 'Tier';
     }
   }
 }

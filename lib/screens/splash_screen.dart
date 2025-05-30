@@ -147,11 +147,11 @@ class _SplashScreenState extends State<SplashScreen>
                 ScaleTransition(
                   scale: _scaleAnimation,
                   child: Container(
-                    width: size.width * 0.35,
-                    height: size.width * 0.35,
+                    width: size.width * 0.3,
+                    height: size.width * 0.3,
                     decoration: BoxDecoration(
                       color: AppConstants.primaryColor,
-                      borderRadius: BorderRadius.circular(size.width * 0.08),
+                      borderRadius: BorderRadius.circular(size.width * 0.06),
                       boxShadow: [
                         BoxShadow(
                           color: AppConstants.primaryColor.withAlpha(100),
@@ -164,11 +164,11 @@ class _SplashScreenState extends State<SplashScreen>
                     child: Icon(
                       Icons.handyman,
                       color: AppConstants.whiteColor,
-                      size: size.width * 0.18,
+                      size: size.width * 0.15,
                     ),
                   ),
                 ),
-                const SizedBox(height: 40),
+                SizedBox(height: size.height * 0.04),
 
                 // Text animations
                 AnimatedBuilder(
@@ -187,17 +187,17 @@ class _SplashScreenState extends State<SplashScreen>
                       Text(
                         AppConstants.appName,
                         style: TextStyle(
-                          fontSize: size.width * 0.08,
+                          fontSize: size.width * 0.06,
                           fontWeight: FontWeight.bold,
                           color: AppConstants.primaryColor,
                           fontFamily: 'Poppins',
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: size.height * 0.01),
                       Text(
                         'Book, Repair & Relax',
                         style: TextStyle(
-                          fontSize: size.width * 0.04,
+                          fontSize: size.width * 0.03,
                           color: AppConstants.lightTextColor,
                           fontFamily: 'Poppins',
                         ),
@@ -206,13 +206,13 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                 ),
 
-                const SizedBox(height: 60),
+                SizedBox(height: size.height * 0.04),
 
                 // Loading indicator
                 if (_isLoading)
                   SizedBox(
-                    width: 50,
-                    height: 50,
+                    width: 40,
+                    height: 40,
                     child: CircularProgressIndicator(
                       valueColor: AlwaysStoppedAnimation<Color>(
                         AppConstants.primaryColor,

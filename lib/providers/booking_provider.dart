@@ -17,16 +17,6 @@ class BookingProvider with ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
   final uuid = Uuid();
 
-  BookingProvider() {
-    // Listen to auth state changes
-    _auth.authStateChanges().listen((user) {
-      if (user == null) {
-        // User logged out, clear all bookings
-        clearBookings();
-      }
-    });
-  }
-
   List<booking_models.BookingModel> _userBookings = [];
   List<booking_models.BookingModel> _allBookings = []; // for admin
   List<booking_models.TimeSlot> _availableSlots = [];
@@ -75,29 +65,14 @@ class BookingProvider with ChangeNotifier {
       final hasFirebaseAccess = await _checkFirebasePermissions();
 
       if (hasFirebaseAccess) {
-        // Get current user ID
-        final currentUser = _auth.currentUser;
-        if (currentUser == null) {
-          throw Exception('User not authenticated');
-        }
-
-        debugPrint('Loading bookings for user ID: ${currentUser.uid}');
-
-        // Get only bookings for the current user
-        final bookingsSnapshot = await _firestore
-            .collection('bookings')
-            .where('userId', isEqualTo: currentUser.uid)
-            .orderBy('createdAt', descending: true)
-            .get();
-
-        debugPrint('Found ${bookingsSnapshot.docs.length} bookings for user');
+        // Get all bookings instead of filtering by user ID
+        final bookingsSnapshot = await _firestore.collection('bookings').get();
 
         if (bookingsSnapshot.docs.isNotEmpty) {
           _userBookings =
               bookingsSnapshot.docs.map((doc) {
                 final data = doc.data();
                 final id = doc.id;
-                debugPrint('Processing booking ID: $id for user: ${data['userId']}');
 
                 // Manual mapping from Firestore document
                 final timeSlotData = data['timeSlot'] as Map<String, dynamic>;
@@ -1080,14 +1055,5 @@ class BookingProvider with ChangeNotifier {
       debugPrint('Unknown date format: $dateValue (${dateValue?.runtimeType})');
       return DateTime.now();
     }
-  }
-
-  // Clear all bookings (used when logging out)
-  void clearBookings() {
-    _userBookings = [];
-    _allBookings = [];
-    _selectedTimeSlot = null;
-    _selectedAddress = null;
-    notifyListeners();
   }
 }

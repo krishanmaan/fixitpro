@@ -363,8 +363,7 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
     );
   }
 
-  void _showAddServiceDialog(BuildContext parentContext) {
-    final scaffoldMessenger = ScaffoldMessenger.of(parentContext);
+  void _showAddServiceDialog(BuildContext context) {
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
     final imageUrlController = TextEditingController();
@@ -400,11 +399,11 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
         "https://placehold.co/600x400/orange/white?text=Home+Repair+Service";
 
     // Load service types first
-    final adminProvider = Provider.of<AdminProvider>(parentContext, listen: false);
+    final adminProvider = Provider.of<AdminProvider>(context, listen: false);
     adminProvider.fetchServiceTypes();
 
     showDialog(
-      context: parentContext,
+      context: context,
       builder:
           (context) => StatefulBuilder(
             builder:
@@ -529,10 +528,9 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                     ),
                     TextButton(
                       onPressed: () async {
-                        // Validate input first
                         if (titleController.text.isEmpty ||
                             descriptionController.text.isEmpty) {
-                          scaffoldMessenger.showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Please fill all required fields'),
                               backgroundColor: Colors.red,
@@ -559,8 +557,10 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                           categoryId: categoryId,
                         );
 
-                        Navigator.of(context).pop();
-
+                        final adminProvider = Provider.of<AdminProvider>(
+                          context,
+                          listen: false,
+                        );
                         final success = await adminProvider.addService(service);
 
                         if (!mounted) return;
@@ -579,12 +579,12 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                           // Add Basic Tier (required)
                           tierAdditions.add(
                             _addTierToService(
-                              serviceId: createdService.id,
-                              tierType: TierType.basic,
-                              price: double.parse(basicPriceController.text),
-                              warrantyMonths: 1, // 1 month warranty
-                              features: defaultTerms['basic']!,
-                              adminProvider: adminProvider,
+                              context,
+                              createdService.id,
+                              TierType.basic,
+                              double.parse(basicPriceController.text),
+                              1, // 1 month warranty
+                              defaultTerms['basic']!,
                             ),
                           );
 
@@ -592,12 +592,12 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                           if (standardPriceController.text.isNotEmpty) {
                             tierAdditions.add(
                               _addTierToService(
-                                serviceId: createdService.id,
-                                tierType: TierType.standard,
-                                price: double.parse(standardPriceController.text),
-                                warrantyMonths: 3, // 3 months warranty
-                                features: defaultTerms['standard']!,
-                                adminProvider: adminProvider,
+                                context,
+                                createdService.id,
+                                TierType.standard,
+                                double.parse(standardPriceController.text),
+                                3, // 3 months warranty
+                                defaultTerms['standard']!,
                               ),
                             );
                           }
@@ -606,12 +606,12 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                           if (premiumPriceController.text.isNotEmpty) {
                             tierAdditions.add(
                               _addTierToService(
-                                serviceId: createdService.id,
-                                tierType: TierType.premium,
-                                price: double.parse(premiumPriceController.text),
-                                warrantyMonths: 6, // 6 months warranty
-                                features: defaultTerms['premium']!,
-                                adminProvider: adminProvider,
+                                context,
+                                createdService.id,
+                                TierType.premium,
+                                double.parse(premiumPriceController.text),
+                                6, // 6 months warranty
+                                defaultTerms['premium']!,
                               ),
                             );
                           }
@@ -621,7 +621,9 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
 
                           if (!mounted) return;
 
-                          scaffoldMessenger.showSnackBar(
+                          // Close dialog and show success message
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
                                 'Service with pricing tiers added successfully!',
@@ -635,7 +637,8 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                         } else {
                           if (!mounted) return;
 
-                          scaffoldMessenger.showSnackBar(
+                          // Show error message
+                          ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
                                 'Failed to add service: ${adminProvider.error ?? "Unknown error"}',
@@ -643,6 +646,7 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                               backgroundColor: Colors.red,
                             ),
                           );
+                          Navigator.of(context).pop();
                         }
                       },
                       child: const Text('Add Service'),
@@ -654,14 +658,18 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
   }
 
   // Helper method to add tier to a service
-  Future<bool> _addTierToService({
-    required String serviceId,
-    required TierType tierType,
-    required double price,
-    required int warrantyMonths,
-    required List<String> features,
-    required AdminProvider adminProvider,
-  }) async {
+  Future<bool> _addTierToService(
+    BuildContext context,
+    String serviceId,
+    TierType tierType,
+    double price,
+    int warrantyMonths,
+    List<String> features,
+  ) async {
+    // Capture provider before the async gap
+    final adminProvider = Provider.of<AdminProvider>(context, listen: false);
+
+    // Now use the captured provider without context
     final tier = TierPricing(
       id: '',
       serviceId: serviceId,
@@ -673,8 +681,7 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
     return await adminProvider.addTierPricing(serviceId, tier);
   }
 
-  void _showEditServiceDialog(BuildContext parentContext, ServiceModel service) {
-    final scaffoldMessenger = ScaffoldMessenger.of(parentContext);
+  void _showEditServiceDialog(BuildContext context, ServiceModel service) {
     final titleController = TextEditingController(text: service.title);
     final descriptionController = TextEditingController(
       text: service.description,
@@ -685,13 +692,15 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
     var includesMaterial = service.includesMaterial;
 
     // Load service types first
-    final adminProvider = Provider.of<AdminProvider>(parentContext, listen: false);
+    final adminProvider = Provider.of<AdminProvider>(context, listen: false);
     adminProvider.fetchServiceTypes();
 
     showDialog(
-      context: parentContext,
-      builder: (dialogContext) => StatefulBuilder(
-            builder: (builderContext, setState) => AlertDialog(
+      context: context,
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setState) => AlertDialog(
                   title: const Text('Edit Service'),
                   content: SingleChildScrollView(
                     child: Column(
@@ -723,14 +732,15 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                           decoration: const InputDecoration(
                             labelText: 'Service Type',
                           ),
-                          items: Provider.of<AdminProvider>(
-                            builderContext,
-                          ).serviceTypes.map((type) {
-                            return DropdownMenuItem(
-                              value: type,
-                              child: Text(type.displayName),
-                            );
-                          }).toList(),
+                          items:
+                              Provider.of<AdminProvider>(
+                                context,
+                              ).serviceTypes.map((type) {
+                                return DropdownMenuItem(
+                                  value: type,
+                                  child: Text(type.displayName),
+                                );
+                              }).toList(),
                           onChanged: (value) {
                             if (value != null) {
                               setState(() {
@@ -746,12 +756,13 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                           decoration: const InputDecoration(
                             labelText: 'Measurement Unit',
                           ),
-                          items: MeasurementUnit.values.map((unit) {
-                            return DropdownMenuItem(
-                              value: unit,
-                              child: Text(unit.toString().split('.').last),
-                            );
-                          }).toList(),
+                          items:
+                              MeasurementUnit.values.map((unit) {
+                                return DropdownMenuItem(
+                                  value: unit,
+                                  child: Text(unit.toString().split('.').last),
+                                );
+                              }).toList(),
                           onChanged: (value) {
                             if (value != null) {
                               setState(() {
@@ -771,21 +782,22 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                             ),
                           ),
                           value: includesMaterial,
-                          onChanged: null,
+                          onChanged:
+                              null, // Make it read-only since it's set by the service type
                         ),
                       ],
                     ),
                   ),
                   actions: [
                     TextButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      onPressed: () => Navigator.of(context).pop(),
                       child: const Text('Cancel'),
                     ),
                     TextButton(
                       onPressed: () async {
                         if (titleController.text.isEmpty ||
                             descriptionController.text.isEmpty) {
-                          scaffoldMessenger.showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Please fill all required fields'),
                               backgroundColor: Colors.red,
@@ -801,35 +813,42 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                           description: descriptionController.text,
                           type: selectedType,
                           unit: selectedUnit,
+                          includesMaterial:
+                              selectedType
+                                  .includesMaterial, // Get from type, not switch
                           imageUrl: imageUrlController.text,
-                          includesMaterial: includesMaterial,
-                          categoryId: service.categoryId,
                           tiers: service.tiers,
                           designs: service.designs,
+                          categoryId: service.categoryId,
                         );
 
-                        Navigator.of(dialogContext).pop();
+                        // Capture context and provider before async gap
+                        final currentContext = context;
+                        final adminProvider = Provider.of<AdminProvider>(
+                          currentContext,
+                          listen: false,
+                        );
 
-                        final success = await adminProvider.updateService(updatedService);
+                        final success = await adminProvider.updateService(
+                          updatedService,
+                        );
 
                         if (!mounted) return;
 
-                        scaffoldMessenger.showSnackBar(
+                        Navigator.of(currentContext).pop();
+                        ScaffoldMessenger.of(currentContext).showSnackBar(
                           SnackBar(
                             content: Text(
                               success
                                   ? 'Service updated successfully'
                                   : 'Failed to update service: ${adminProvider.error ?? "Unknown error"}',
                             ),
-                            backgroundColor: success ? Colors.green : Colors.red,
+                            backgroundColor:
+                                success ? Colors.green : Colors.red,
                           ),
                         );
-
-                        if (success) {
-                          _loadServices();
-                        }
                       },
-                      child: const Text('Save'),
+                      child: const Text('Update'),
                     ),
                   ],
                 ),
@@ -837,8 +856,7 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
     );
   }
 
-  void _showAddTierDialog(BuildContext parentContext, ServiceModel service) {
-    final scaffoldMessenger = ScaffoldMessenger.of(parentContext);
+  void _showAddTierDialog(BuildContext context, ServiceModel service) {
     final priceController = TextEditingController();
     final warrantyController = TextEditingController();
     final featuresController = TextEditingController();
@@ -847,8 +865,9 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
     List<TierType> tierTypes = TierType.values;
 
     showDialog(
-      context: parentContext,
-      builder: (dialogContext) => AlertDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
             title: const Text('Add Tier Pricing'),
             content: SingleChildScrollView(
               child: Column(
@@ -858,14 +877,15 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                   DropdownButtonFormField<TierType>(
                     value: selectedTier,
                     decoration: const InputDecoration(labelText: 'Tier Type'),
-                    items: tierTypes.map((tier) {
-                      return DropdownMenuItem(
-                        value: tier,
-                        child: Text(
-                          tier.toString().split('.').last.toUpperCase(),
-                        ),
-                      );
-                    }).toList(),
+                    items:
+                        tierTypes.map((tier) {
+                          return DropdownMenuItem(
+                            value: tier,
+                            child: Text(
+                              tier.toString().split('.').last.toUpperCase(),
+                            ),
+                          );
+                        }).toList(),
                     onChanged: (value) {
                       if (value != null) {
                         selectedTier = value;
@@ -904,14 +924,14 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
+                onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Cancel'),
               ),
               TextButton(
                 onPressed: () async {
                   if (priceController.text.isEmpty ||
                       warrantyController.text.isEmpty) {
-                    scaffoldMessenger.showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Please fill price and warranty'),
                         backgroundColor: Colors.red,
@@ -923,14 +943,17 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                   // Parse features
                   List<String> features = [];
                   if (featuresController.text.isNotEmpty) {
-                    features = featuresController.text
-                        .split(',')
-                        .map((e) => e.trim())
-                        .toList();
+                    features =
+                        featuresController.text
+                            .split(',')
+                            .map((e) => e.trim())
+                            .toList();
                   }
 
+                  // Capture context and provider before async gap
+                  final currentContext = context;
                   final adminProvider = Provider.of<AdminProvider>(
-                    parentContext,
+                    currentContext,
                     listen: false,
                   );
 
@@ -941,12 +964,11 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                     price: double.parse(priceController.text),
                     warrantyMonths: int.parse(warrantyController.text),
                     features: features,
-                    visitCharge: visitChargeController.text.isNotEmpty
-                        ? double.parse(visitChargeController.text)
-                        : 0.0,
+                    visitCharge:
+                        visitChargeController.text.isNotEmpty
+                            ? double.parse(visitChargeController.text)
+                            : 0.0,
                   );
-
-                  Navigator.of(dialogContext).pop();
 
                   final success = await adminProvider.addTierPricing(
                     service.id,
@@ -954,8 +976,8 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                   );
 
                   if (!mounted) return;
-
-                  scaffoldMessenger.showSnackBar(
+                  Navigator.of(currentContext).pop();
+                  ScaffoldMessenger.of(currentContext).showSnackBar(
                     SnackBar(
                       content: Text(
                         success
@@ -965,10 +987,6 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                       backgroundColor: success ? Colors.green : Colors.red,
                     ),
                   );
-
-                  if (success) {
-                    _loadServices();
-                  }
                 },
                 child: const Text('Add'),
               ),
@@ -977,15 +995,15 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
     );
   }
 
-  void _showAddDesignDialog(BuildContext parentContext, ServiceModel service) {
-    final scaffoldMessenger = ScaffoldMessenger.of(parentContext);
+  void _showAddDesignDialog(BuildContext context, ServiceModel service) {
     final nameController = TextEditingController();
     final priceController = TextEditingController();
     final imageUrlController = TextEditingController();
 
     showDialog(
-      context: parentContext,
-      builder: (dialogContext) => AlertDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
             title: const Text('Add Material Design'),
             content: SingleChildScrollView(
               child: Column(
@@ -1012,24 +1030,26 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
+                onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Cancel'),
               ),
               TextButton(
                 onPressed: () async {
                   if (nameController.text.isEmpty ||
                       priceController.text.isEmpty) {
-                    scaffoldMessenger.showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Please fill all required fields'),
+                        content: Text('Please fill name and price'),
                         backgroundColor: Colors.red,
                       ),
                     );
                     return;
                   }
 
+                  // Capture the context and provider before async gap
+                  final currentContext = context;
                   final adminProvider = Provider.of<AdminProvider>(
-                    parentContext,
+                    currentContext,
                     listen: false,
                   );
 
@@ -1041,16 +1061,16 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                     imageUrl: imageUrlController.text,
                   );
 
-                  Navigator.of(dialogContext).pop();
-
                   final success = await adminProvider.addMaterialDesign(
                     service.id,
                     design,
                   );
 
+                  // Use mounted check before accessing context after async gap
                   if (!mounted) return;
 
-                  scaffoldMessenger.showSnackBar(
+                  Navigator.of(currentContext).pop();
+                  ScaffoldMessenger.of(currentContext).showSnackBar(
                     SnackBar(
                       content: Text(
                         success
@@ -1069,36 +1089,38 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
   }
 
   void _showDeleteServiceConfirmation(
-    BuildContext parentContext,
+    BuildContext context,
     ServiceModel service,
   ) {
-    final scaffoldMessenger = ScaffoldMessenger.of(parentContext);
     showDialog(
-      context: parentContext,
-      builder: (dialogContext) => AlertDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
             title: const Text('Delete Service'),
             content: const Text(
               'Are you sure you want to delete this service? This action cannot be undone.',
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
+                onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Cancel'),
               ),
               TextButton(
                 onPressed: () async {
+                  // Capture context and provider before async gap
+                  final currentContext = context;
                   final adminProvider = Provider.of<AdminProvider>(
-                    parentContext,
+                    currentContext,
                     listen: false,
                   );
 
-                  Navigator.of(dialogContext).pop();
-
                   final success = await adminProvider.deleteService(service.id);
 
+                  // Use mounted check before accessing context after async gap
                   if (!mounted) return;
 
-                  scaffoldMessenger.showSnackBar(
+                  Navigator.of(currentContext).pop();
+                  ScaffoldMessenger.of(currentContext).showSnackBar(
                     SnackBar(
                       content: Text(
                         success
@@ -1108,10 +1130,6 @@ class _ManageServicesScreenState extends State<ManageServicesScreen> {
                       backgroundColor: success ? Colors.green : Colors.red,
                     ),
                   );
-
-                  if (success) {
-                    _loadServices();
-                  }
                 },
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
                 child: const Text('Delete'),

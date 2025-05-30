@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fixitpro/constants/app_constants.dart';
 import 'package:fixitpro/models/user_model.dart';
 import 'package:fixitpro/services/address_service.dart';
+
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -276,23 +277,30 @@ class _AddressScreenState extends State<AddressScreen> {
   }
 
   void _showAddEditAddressDialog(
-    BuildContext parentContext,
-    {SavedAddress? address}
-  ) {
-    final scaffoldMessenger = ScaffoldMessenger.of(parentContext);
+    BuildContext context, {
+    SavedAddress? address,
+  }) {
     final isEditing = address != null;
-    final labelController = TextEditingController(text: address?.label ?? '');
-    final addressController = TextEditingController(text: address?.address ?? '');
-    double latitude = address?.latitude ?? 0.0;
-    double longitude = address?.longitude ?? 0.0;
+    final labelController = TextEditingController(
+      text: isEditing ? address.label : '',
+    );
+    final addressController = TextEditingController(
+      text: isEditing ? address.address : '',
+    );
+
+    // Default to current location or a fixed position if editing
+    double latitude = isEditing ? address.latitude : 28.7041;
+    double longitude = isEditing ? address.longitude : 77.1025;
 
     showDialog(
-      context: parentContext,
-      builder: (dialogContext) => AlertDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
             title: Text(isEditing ? 'Edit Address' : 'Add New Address'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextField(
                     controller: labelController,
@@ -300,18 +308,20 @@ class _AddressScreenState extends State<AddressScreen> {
                       labelText: 'Label (e.g., Home, Office)',
                     ),
                   ),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: addressController,
-                    decoration: const InputDecoration(
-                      labelText: 'Address',
-                    ),
                     maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Full Address',
+                      hintText: 'Street, City, State, ZIP',
+                    ),
                   ),
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
                     onPressed: () {
                       _showLocationPicker(
-                        dialogContext,
+                        context,
                         initialLatitude: latitude,
                         initialLongitude: longitude,
                         onLocationSelected: (lat, lng, address) {
@@ -332,7 +342,7 @@ class _AddressScreenState extends State<AddressScreen> {
             actions: [
               TextButton(
                 onPressed: () {
-                  Navigator.pop(dialogContext);
+                  Navigator.pop(context);
                 },
                 child: const Text('Cancel'),
               ),
@@ -341,7 +351,7 @@ class _AddressScreenState extends State<AddressScreen> {
                   // Validate input
                   if (labelController.text.isEmpty ||
                       addressController.text.isEmpty) {
-                    scaffoldMessenger.showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Please fill in all fields'),
                       ),
@@ -349,7 +359,7 @@ class _AddressScreenState extends State<AddressScreen> {
                     return;
                   }
 
-                  Navigator.pop(dialogContext);
+                  Navigator.pop(context);
 
                   final newAddress = SavedAddress(
                     id: isEditing ? address.id : const Uuid().v4(),
@@ -361,14 +371,20 @@ class _AddressScreenState extends State<AddressScreen> {
 
                   final success = await _addressService.saveAddress(newAddress);
 
-                  if (!mounted) return;
-
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text(success ? 'Address saved successfully' : 'Failed to save address'),
-                      backgroundColor: success ? Colors.green : Colors.red,
-                    ),
-                  );
+                  if (success && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Address saved successfully'),
+                      ),
+                    );
+                  } else if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Failed to save address'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 },
                 child: Text(isEditing ? 'Update' : 'Save'),
               ),
@@ -459,12 +475,11 @@ class _AddressScreenState extends State<AddressScreen> {
     );
   }
 
-  void _showDeleteAddressDialog(BuildContext parentContext, SavedAddress address) {
-    final scaffoldMessenger = ScaffoldMessenger.of(parentContext);
-
+  void _showDeleteAddressDialog(BuildContext context, SavedAddress address) {
     showDialog(
-      context: parentContext,
-      builder: (dialogContext) => AlertDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
             title: const Text('Delete Address'),
             content: Text(
               'Are you sure you want to delete your ${address.label} address?',
@@ -472,26 +487,32 @@ class _AddressScreenState extends State<AddressScreen> {
             actions: [
               TextButton(
                 onPressed: () {
-                  Navigator.pop(dialogContext);
+                  Navigator.pop(context);
                 },
                 child: const Text('Cancel'),
               ),
               TextButton(
                 onPressed: () async {
-                  Navigator.pop(dialogContext);
+                  Navigator.pop(context);
 
                   final success = await _addressService.deleteAddress(
                     address.id,
                   );
 
-                  if (!mounted) return;
-
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text(success ? 'Address deleted successfully' : 'Failed to delete address'),
-                      backgroundColor: success ? Colors.green : Colors.red,
-                    ),
-                  );
+                  if (success && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Address deleted successfully'),
+                      ),
+                    );
+                  } else if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Failed to delete address'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 },
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
                 child: const Text('Delete'),

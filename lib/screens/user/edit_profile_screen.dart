@@ -7,12 +7,12 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:fixitpro/constants/app_constants.dart';
 import 'package:fixitpro/providers/auth_provider.dart';
-
+import 'package:fixitpro/widgets/custom_appbar.dart';
 
 class EditProfileScreen extends StatefulWidget {
   static const String routeName = '/edit-profile';
 
-  const EditProfileScreen({super.key});
+  const EditProfileScreen({Key? key}) : super(key: key);
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -36,11 +36,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize controllers with current user data
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = Provider.of<AuthProvider>(context, listen: false).user;
       if (user != null) {
         _nameController.text = user.name;
-        _phoneController.text = user.phone;
+        _phoneController.text = user.phone ?? '';
         _currentPhotoUrl = user.photoUrl;
       }
     });
@@ -64,10 +65,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         });
       }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking image: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error picking image: $e')));
     }
   }
 
@@ -102,7 +102,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
 
     try {
-      // Get the auth provider before async operations
+      // Get the auth provider
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final userId = _auth.currentUser?.uid;
 
@@ -132,16 +132,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (!mounted) return;
 
-      // Show success message and navigate back
+      // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile updated successfully')),
       );
+
+      // Navigate back to profile screen
       Navigator.pop(context);
     } catch (e) {
+      // Show error message
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating profile: $e')),
-      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -175,11 +179,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   children: [
                     CircleAvatar(
                       radius: 60,
-                      backgroundColor: AppConstants.primaryColor.withValues(
-                        alpha: 0.1 * 255,
-                        red: ((AppConstants.primaryColor.r * 255.0).round() & 0xff).toDouble(),
-                        green: ((AppConstants.primaryColor.g * 255.0).round() & 0xff).toDouble(),
-                        blue: ((AppConstants.primaryColor.b * 255.0).round() & 0xff).toDouble(),
+                      backgroundColor: AppConstants.primaryColor.withOpacity(
+                        0.1,
                       ),
                       backgroundImage: _getProfileImage(user.photoUrl),
                       child:

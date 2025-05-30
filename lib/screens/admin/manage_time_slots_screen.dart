@@ -544,7 +544,6 @@ class _ManageTimeSlotsScreenState extends State<ManageTimeSlotsScreen> {
   }
 
   Future<void> _createTimeSlots(List<String> selectedTimes) async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final adminProvider = Provider.of<AdminProvider>(context, listen: false);
 
     setState(() {
@@ -565,9 +564,9 @@ class _ManageTimeSlotsScreenState extends State<ManageTimeSlotsScreen> {
       });
     }
 
-    if (!mounted) return;
+    if (!context.mounted) return;
 
-    scaffoldMessenger.showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           success

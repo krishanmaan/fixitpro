@@ -236,10 +236,12 @@ class BookingModel {
       materialDesignId: json['materialDesignId'],
       materialDesignName: json['materialDesignName'],
       materialPrice:
-          json['materialPrice']?.toDouble(),
+          json['materialPrice'] != null
+              ? json['materialPrice'].toDouble()
+              : null,
       reviewId: json['reviewId'],
       visitCharge:
-          json['visitCharge']?.toDouble(),
+          json['visitCharge'] != null ? json['visitCharge'].toDouble() : null,
       serviceChargePaid: json['serviceChargePaid'] ?? false,
     );
   }

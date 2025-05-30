@@ -124,7 +124,7 @@ class ServiceCard extends StatelessWidget {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppConstants.primaryColor,
+                            color: AppConstants.primaryColor.withOpacity(0.3),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -224,7 +224,7 @@ class ServiceCard extends StatelessWidget {
                             vertical: isSmallScreen ? 4 : 5,
                           ),
                           decoration: BoxDecoration(
-                            color: AppConstants.primaryColor,
+                            color: AppConstants.primaryColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(
                               isSmallScreen ? 8 : 10,
                             ),
@@ -288,12 +288,12 @@ class ServiceCategoryCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const ServiceCategoryCard({
-    super.key,
+    Key? key,
     required this.title,
     required this.icon,
     required this.color,
     required this.onTap,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {

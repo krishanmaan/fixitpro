@@ -32,7 +32,7 @@ class BookingService {
               snapshot.docs
                   .map(
                     (doc) => BookingModel.fromJson(
-                      doc.data(),
+                      doc.data() as Map<String, dynamic>,
                     ),
                   )
                   .toList(),
@@ -62,7 +62,7 @@ class BookingService {
               snapshot.docs
                   .map(
                     (doc) => BookingModel.fromJson(
-                      doc.data(),
+                      doc.data() as Map<String, dynamic>,
                     ),
                   )
                   .toList(),

@@ -45,8 +45,15 @@ class _BookingScreenState extends State<BookingScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Initialize with service provider's area value if available
+      final serviceProvider = Provider.of<ServiceProvider>(
+        context,
+        listen: false,
+      );
       _calculatePrice();
       _loadTimeSlots();
+
+      // Pre-fill user info if available
       _prefillUserInfo();
     });
   }
@@ -57,8 +64,8 @@ class _BookingScreenState extends State<BookingScreen> {
 
     if (user != null) {
       _nameController.text = user.name;
-      if (user.phone.isNotEmpty) {
-        _phoneController.text = user.phone;
+      if (user.phone?.isNotEmpty ?? false) {
+        _phoneController.text = user.phone!;
       }
 
       // Pre-select saved address if available
@@ -91,8 +98,8 @@ class _BookingScreenState extends State<BookingScreen> {
     try {
       await bookingProvider.loadAvailableTimeSlots(_selectedDate);
     } catch (e) {
+      // If loading time slots fails (e.g., permission issues), generate local time slots
       debugPrint('Error loading time slots: $e');
-      // The provider already handles fallback to local slots
     } finally {
       if (mounted) {
         setState(() {
@@ -100,6 +107,48 @@ class _BookingScreenState extends State<BookingScreen> {
         });
       }
     }
+  }
+
+  // Generate local time slots as fallback when Firebase has permission issues
+  List<booking_models.TimeSlot> _generateLocalTimeSlots(DateTime date) {
+    final slots = <booking_models.TimeSlot>[];
+    final now = DateTime.now();
+    final bool isToday =
+        date.year == now.year && date.month == now.month && date.day == now.day;
+    final int currentHour = now.hour;
+
+    // Morning slots (9 AM to 12 PM)
+    for (int hour = 9; hour <= 12; hour++) {
+      // Skip time slots in the past for today
+      if (isToday && hour <= currentHour) continue;
+
+      final String timeStr = '${hour.toString().padLeft(2, '0')}:00 AM';
+      slots.add(_createLocalTimeSlot(date, timeStr));
+    }
+
+    // Afternoon slots (1 PM to 6 PM)
+    for (int hour = 1; hour <= 6; hour++) {
+      // Skip time slots in the past for today
+      if (isToday && hour + 12 <= currentHour) continue;
+
+      final String timeStr = '${hour.toString().padLeft(2, '0')}:00 PM';
+      slots.add(_createLocalTimeSlot(date, timeStr));
+    }
+
+    return slots;
+  }
+
+  booking_models.TimeSlot _createLocalTimeSlot(DateTime date, String timeStr) {
+    // Generate a deterministic ID based on date and time to ensure consistent selection
+    final String id =
+        '${date.year}${date.month}${date.day}-${timeStr.replaceAll(RegExp(r'[^0-9]'), '')}';
+
+    return booking_models.TimeSlot(
+      id: id,
+      date: date,
+      time: timeStr,
+      status: booking_models.SlotStatus.available,
+    );
   }
 
   void _calculatePrice() {
@@ -1406,6 +1455,8 @@ class _BookingScreenState extends State<BookingScreen> {
       ),
     );
   }
+
+  // Removed unused _buildLocalTimeSlots method
 
   void _showErrorDialog(String errorMessage) {
     showDialog(

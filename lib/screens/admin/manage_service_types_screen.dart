@@ -206,127 +206,124 @@ class _ManageServiceTypesScreenState extends State<ManageServiceTypesScreen> {
     );
   }
 
-  void _showAddServiceTypeDialog(BuildContext parentContext) {
+  void _showAddServiceTypeDialog(BuildContext context) {
     final nameController = TextEditingController();
     final displayNameController = TextEditingController();
     final imageUrlController = TextEditingController();
     bool includesMaterial = false;
-    final scaffoldMessenger = ScaffoldMessenger.of(parentContext);
 
     showDialog(
-      context: parentContext,
-      builder: (dialogContext) => StatefulBuilder(
-            builder: (builderContext, setState) => AlertDialog(
-              title: const Text('Add Service Type'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Service Type Name*',
-                        hintText: 'E.g. consultation',
-                      ),
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Add Service Type'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Service Type Name*',
+                      hintText: 'E.g. consultation',
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: displayNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Display Name*',
-                        hintText: 'E.g. Consultation',
-                      ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: displayNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Display Name*',
+                      hintText: 'E.g. Consultation',
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: imageUrlController,
-                      decoration: const InputDecoration(
-                        labelText: 'Custom Icon URL (Optional)',
-                        hintText: 'https://example.com/icon.png',
-                      ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: imageUrlController,
+                    decoration: const InputDecoration(
+                      labelText: 'Custom Icon URL (Optional)',
+                      hintText: 'https://example.com/icon.png',
                     ),
-                    const SizedBox(height: 16),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Includes Material'),
-                      subtitle: const Text(
-                        'If enabled, services using this type will have material options available for selection',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      leading: Checkbox(
-                        value: includesMaterial,
-                        onChanged: (value) {
-                          setState(() {
-                            includesMaterial = value ?? false;
-                          });
-                        },
-                      ),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Includes Material'),
+                    subtitle: const Text(
+                      'If enabled, services using this type will have material options available for selection',
+                      style: TextStyle(fontSize: 12),
                     ),
-                  ],
-                ),
+                    leading: Checkbox(
+                      value: includesMaterial,
+                      onChanged: (value) {
+                        setState(() {
+                          includesMaterial = value ?? false;
+                        });
+                      },
+                    ),
+                  ),
+                ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    if (nameController.text.isEmpty ||
-                        displayNameController.text.isEmpty) {
-                      ScaffoldMessenger.of(dialogContext).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please fill all required fields'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
-
-                    // Create service type
-                    final serviceType = ServiceTypeModel(
-                      id: '',
-                      name: nameController.text.trim().toLowerCase(),
-                      displayName: displayNameController.text.trim(),
-                      includesMaterial: includesMaterial,
-                      imageUrl: imageUrlController.text.trim(),
-                    );
-
-                    final adminProvider = Provider.of<AdminProvider>(
-                      parentContext,
-                      listen: false,
-                    );
-
-                    Navigator.of(dialogContext).pop();
-
-                    final success = await adminProvider.addServiceType(
-                      serviceType,
-                    );
-
-                    if (!mounted) return;
-
-                    scaffoldMessenger.showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          success
-                              ? 'Service type added successfully'
-                              : 'Failed to add service type: ${adminProvider.error ?? "Unknown error"}',
-                        ),
-                        backgroundColor: success ? Colors.green : Colors.red,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  if (nameController.text.isEmpty ||
+                      displayNameController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please fill all required fields'),
+                        backgroundColor: Colors.red,
                       ),
                     );
-                  },
-                  child: const Text('Add'),
-                ),
-              ],
-            ),
+                    return;
+                  }
+
+                  // Create service type
+                  final serviceType = ServiceTypeModel(
+                    id: '',
+                    name: nameController.text.trim().toLowerCase(),
+                    displayName: displayNameController.text.trim(),
+                    includesMaterial: includesMaterial,
+                    imageUrl: imageUrlController.text.trim(),
+                  );
+
+                  final adminProvider = Provider.of<AdminProvider>(
+                    context,
+                    listen: false,
+                  );
+                  final success = await adminProvider.addServiceType(
+                    serviceType,
+                  );
+
+                  if (!mounted) return;
+                  Navigator.of(context).pop();
+
+                  // Show success or error message
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        success
+                            ? 'Service type added successfully'
+                            : 'Failed to add service type: ${adminProvider.error ?? "Unknown error"}',
+                      ),
+                      backgroundColor: success ? Colors.green : Colors.red,
+                    ),
+                  );
+                },
+                child: const Text('Add'),
+              ),
+            ],
           ),
     );
   }
 
   void _showEditServiceTypeDialog(
-    BuildContext parentContext,
+    BuildContext context,
     ServiceTypeModel serviceType,
   ) {
     final nameController = TextEditingController(text: serviceType.name);
@@ -337,12 +334,13 @@ class _ManageServiceTypesScreenState extends State<ManageServiceTypesScreen> {
       text: serviceType.imageUrl,
     );
     bool includesMaterial = serviceType.includesMaterial;
-    final scaffoldMessenger = ScaffoldMessenger.of(parentContext);
 
     showDialog(
-      context: parentContext,
-      builder: (dialogContext) => StatefulBuilder(
-            builder: (builderContext, setState) => AlertDialog(
+      context: context,
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setState) => AlertDialog(
                   title: const Text('Edit Service Type'),
                   content: SingleChildScrollView(
                     child: Column(
@@ -392,14 +390,14 @@ class _ManageServiceTypesScreenState extends State<ManageServiceTypesScreen> {
                   ),
                   actions: [
                     TextButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      onPressed: () => Navigator.of(context).pop(),
                       child: const Text('Cancel'),
                     ),
                     TextButton(
                       onPressed: () async {
                         if (nameController.text.isEmpty ||
                             displayNameController.text.isEmpty) {
-                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Please fill all required fields'),
                               backgroundColor: Colors.red,
@@ -418,26 +416,26 @@ class _ManageServiceTypesScreenState extends State<ManageServiceTypesScreen> {
                         );
 
                         final adminProvider = Provider.of<AdminProvider>(
-                          parentContext,
+                          context,
                           listen: false,
                         );
-
-                        Navigator.of(dialogContext).pop();
-
                         final success = await adminProvider.updateServiceType(
                           updatedServiceType,
                         );
 
                         if (!mounted) return;
+                        Navigator.of(context).pop();
 
-                        scaffoldMessenger.showSnackBar(
+                        // Show success or error message
+                        ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
                               success
                                   ? 'Service type updated successfully'
                                   : 'Failed to update service type: ${adminProvider.error ?? "Unknown error"}',
                             ),
-                            backgroundColor: success ? Colors.green : Colors.red,
+                            backgroundColor:
+                                success ? Colors.green : Colors.red,
                           ),
                         );
                       },
@@ -450,14 +448,13 @@ class _ManageServiceTypesScreenState extends State<ManageServiceTypesScreen> {
   }
 
   void _showDeleteConfirmationDialog(
-    BuildContext parentContext,
+    BuildContext context,
     ServiceTypeModel serviceType,
   ) {
-    final scaffoldMessenger = ScaffoldMessenger.of(parentContext);
-
     showDialog(
-      context: parentContext,
-      builder: (dialogContext) => AlertDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
             title: const Text('Delete Service Type'),
             content: Text(
               'Are you sure you want to delete service type "${serviceType.displayName}"? '
@@ -465,25 +462,24 @@ class _ManageServiceTypesScreenState extends State<ManageServiceTypesScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
+                onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Cancel'),
               ),
               TextButton(
                 onPressed: () async {
                   final adminProvider = Provider.of<AdminProvider>(
-                    parentContext,
+                    context,
                     listen: false,
                   );
-
-                  Navigator.of(dialogContext).pop();
-                  
                   final success = await adminProvider.deleteServiceType(
                     serviceType.id,
                   );
 
                   if (!mounted) return;
+                  Navigator.of(context).pop();
 
-                  scaffoldMessenger.showSnackBar(
+                  // Show success or error message
+                  ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
                         success

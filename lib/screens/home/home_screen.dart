@@ -64,10 +64,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Always update UI with whatever services are available
-    setState(() {
-      _filteredServices = serviceProvider.services;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _filteredServices = serviceProvider.services;
+        _isLoading = false;
+      });
+    }
   }
 
   void _filterServices(String query) {
@@ -77,21 +79,25 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (query.isEmpty) {
-      setState(() {
-        _filteredServices = serviceProvider.services;
-      });
+      if (mounted) {
+        setState(() {
+          _filteredServices = serviceProvider.services;
+        });
+      }
       return;
     }
 
     final lowercaseQuery = query.toLowerCase();
 
-    setState(() {
-      _filteredServices =
-          serviceProvider.services.where((service) {
-            return service.title.toLowerCase().contains(lowercaseQuery) ||
-                service.description.toLowerCase().contains(lowercaseQuery);
-          }).toList();
-    });
+    if (mounted) {
+      setState(() {
+        _filteredServices =
+            serviceProvider.services.where((service) {
+              return service.title.toLowerCase().contains(lowercaseQuery) ||
+                  service.description.toLowerCase().contains(lowercaseQuery);
+            }).toList();
+      });
+    }
   }
 
   void _navigateToServiceDetail(ServiceModel service) {

@@ -12,10 +12,10 @@ class ServicesByCategoryScreen extends StatelessWidget {
   final String categoryName;
 
   const ServicesByCategoryScreen({
-    super.key,
+    Key? key,
     required this.categoryId,
     required this.categoryName,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +183,7 @@ class ServicesByCategoryScreen extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: AppConstants.primaryColor,
+                            color: AppConstants.primaryColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -202,7 +202,7 @@ class ServicesByCategoryScreen extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.blue,
+                            color: Colors.blue.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(

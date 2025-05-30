@@ -115,7 +115,7 @@ class AppConstants {
       filled: true,
       fillColor: whiteColor,
       labelStyle: TextStyle(color: lightTextColor),
-      hintStyle: TextStyle(color: lightTextColor),
+      hintStyle: TextStyle(color: lightTextColor.withOpacity(0.7)),
       contentPadding: EdgeInsets.symmetric(
         horizontal: defaultPadding,
         vertical: defaultPadding,

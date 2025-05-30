@@ -25,7 +25,7 @@ class AddressService {
         .map((snapshot) => _convertSnapshotToAddresses(snapshot));
   }
 
-  /// Helper method to convert Firestore snapshot to List
+  /// Helper method to convert Firestore snapshot to List<SavedAddress>
   List<SavedAddress> _convertSnapshotToAddresses(QuerySnapshot snapshot) {
     return snapshot.docs.map((doc) {
       final data = doc.data() as Map<String, dynamic>;

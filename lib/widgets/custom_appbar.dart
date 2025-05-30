@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:fixitpro/constants/app_constants.dart';
+import 'package:fixitpro/providers/auth_provider.dart';
 import 'package:fixitpro/screens/user/notifications_screen.dart';
 
 class UserDashboardAppBar extends StatelessWidget
@@ -18,6 +20,10 @@ class UserDashboardAppBar extends StatelessWidget
   @override
   Widget build(BuildContext context) {
     final isSmallScreen = AppConstants.isSmallScreen(context);
+    final authProvider = Provider.of<AuthProvider>(context);
+
+    // Calculate dynamic height based on screen size
+    final appBarHeight = AppConstants.getResponsiveDimension(context, 60);
 
     // Calculate icon sizes based on screen size
     final double iconSize = isSmallScreen ? 20.0 : 24.0;

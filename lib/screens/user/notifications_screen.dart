@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:fixitpro/constants/app_constants.dart';
+import 'package:fixitpro/widgets/custom_appbar.dart';
 
 class NotificationsScreen extends StatefulWidget {
   static const String routeName = '/notifications';

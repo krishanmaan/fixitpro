@@ -10,7 +10,8 @@ class AppTheme {
         seedColor: AppConstants.primaryColor,
         primary: AppConstants.primaryColor,
         secondary: AppConstants.secondaryColor,
-        surface: AppConstants.backgroundColor,
+        background: AppConstants.backgroundColor,
+        surface: AppConstants.whiteColor,
         error: AppConstants.errorColor,
         brightness: Brightness.light,
       ),
@@ -189,28 +190,28 @@ class AppTheme {
         ),
       ),
       checkboxTheme: CheckboxThemeData(
-        fillColor: WidgetStateProperty.resolveWith<Color>((states) {
-          if (states.contains(WidgetState.selected)) {
+        fillColor: MaterialStateProperty.resolveWith<Color>((states) {
+          if (states.contains(MaterialState.selected)) {
             return AppConstants.primaryColor;
           }
           return Colors.transparent;
         }),
-        checkColor: WidgetStateProperty.all(Colors.white),
+        checkColor: MaterialStateProperty.all(Colors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         side: const BorderSide(color: AppConstants.lightTextColor),
       ),
       radioTheme: RadioThemeData(
-        fillColor: WidgetStateProperty.all(AppConstants.primaryColor),
+        fillColor: MaterialStateProperty.all(AppConstants.primaryColor),
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
-          if (states.contains(WidgetState.selected)) {
+        thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
+          if (states.contains(MaterialState.selected)) {
             return AppConstants.primaryColor;
           }
           return Colors.grey.shade400;
         }),
-        trackColor: WidgetStateProperty.resolveWith<Color>((states) {
-          if (states.contains(WidgetState.selected)) {
+        trackColor: MaterialStateProperty.resolveWith<Color>((states) {
+          if (states.contains(MaterialState.selected)) {
             return AppConstants.primaryColor.withAlpha(128);
           }
           return Colors.grey.shade300;

@@ -13,14 +13,14 @@ class BookingCard extends StatelessWidget {
   final bool isDetailView;
 
   const BookingCard({
-    super.key,
+    Key? key,
     required this.booking,
     required this.onTap,
     this.onCancel,
     this.onReschedule,
     this.onReview,
     this.isDetailView = false,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +130,7 @@ class BookingCard extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppConstants.primaryColor,
+                        color: AppConstants.primaryColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Row(
@@ -386,7 +386,7 @@ class BookingCard extends StatelessWidget {
                           AppConstants.smallPadding,
                         ),
                         decoration: BoxDecoration(
-                          color: AppConstants.accentColor,
+                          color: AppConstants.accentColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(
                             AppConstants.defaultBorderRadius,
                           ),
@@ -564,7 +564,8 @@ class BookingCard extends StatelessWidget {
         return 'Standard';
       case TierType.premium:
         return 'Premium';
-      
+      default:
+        return 'Basic';
     }
   }
 

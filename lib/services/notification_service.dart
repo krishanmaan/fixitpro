@@ -60,7 +60,7 @@ class NotificationService {
       return snapshot.docs
           .map(
             (doc) =>
-                UserNotification.fromJson(doc.data()),
+                UserNotification.fromJson(doc.data() as Map<String, dynamic>),
           )
           .toList();
     } catch (e) {

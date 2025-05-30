@@ -18,7 +18,7 @@ import 'package:intl/intl.dart';
 class AdminDashboardScreen extends StatefulWidget {
   static const String routeName = '/admin/dashboard';
 
-  const AdminDashboardScreen({super.key});
+  const AdminDashboardScreen({Key? key}) : super(key: key);
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -70,7 +70,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await authProvider.signOut(context);
+              await authProvider.signOut();
               if (context.mounted) {
                 Navigator.of(
                   context,
@@ -359,7 +359,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircleAvatar(
-                  backgroundColor: color.withAlpha(51),
+                  backgroundColor: color.withOpacity(0.2),
                   radius: 24,
                   child: Icon(icon, color: color, size: 24),
                 ),
@@ -561,12 +561,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             leading: const Icon(Icons.logout),
             title: const Text('Sign Out'),
             onTap: () async {
-              final navigatorContext = context;
               Navigator.pop(context);
-              await Provider.of<AuthProvider>(context, listen: false).signOut(context);
-              if (navigatorContext.mounted) {
+              await Provider.of<AuthProvider>(context, listen: false).signOut();
+              if (context.mounted) {
                 Navigator.of(
-                  navigatorContext,
+                  context,
                 ).pushReplacementNamed(LoginScreen.routeName);
               }
             },

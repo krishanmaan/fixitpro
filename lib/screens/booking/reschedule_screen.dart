@@ -9,14 +9,14 @@ import 'package:intl/intl.dart';
 class RescheduleScreen extends StatefulWidget {
   static const String routeName = '/reschedule';
 
-  const RescheduleScreen({super.key});
+  const RescheduleScreen({Key? key}) : super(key: key);
 
   @override
   State<RescheduleScreen> createState() => _RescheduleScreenState();
 }
 
 class _RescheduleScreenState extends State<RescheduleScreen> {
-  final DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
+  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
   TimeSlot? _selectedTimeSlot;
   bool _isLoading = false;
   String? _errorMessage;
@@ -187,7 +187,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                     Container(
                       padding: const EdgeInsets.all(AppConstants.smallPadding),
                       decoration: BoxDecoration(
-                        color: AppConstants.errorColor,
+                        color: AppConstants.errorColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(
                           AppConstants.defaultBorderRadius,
                         ),
@@ -217,12 +217,12 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                   Container(
                     padding: const EdgeInsets.all(AppConstants.smallPadding),
                     decoration: BoxDecoration(
-                      color: AppConstants.primaryColor,
+                      color: AppConstants.primaryColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(
                         AppConstants.defaultBorderRadius,
                       ),
                       border: Border.all(
-                        color: AppConstants.primaryColor,
+                        color: AppConstants.primaryColor.withOpacity(0.3),
                       ),
                     ),
                     child: Row(

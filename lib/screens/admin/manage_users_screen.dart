@@ -286,8 +286,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   Navigator.of(context).pop();
                   await _promoteToAdmin(user.id);
                 },
-                style: TextButton.styleFrom(foregroundColor: Colors.indigo),
                 child: const Text('Promote'),
+                style: TextButton.styleFrom(foregroundColor: Colors.indigo),
               ),
             ],
           ),
@@ -312,7 +312,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       _isLoading = false;
     });
 
-    if (!mounted) return;
+    if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
