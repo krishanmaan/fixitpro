@@ -18,7 +18,7 @@ import 'package:intl/intl.dart';
 class AdminDashboardScreen extends StatefulWidget {
   static const String routeName = '/admin/dashboard';
 
-  const AdminDashboardScreen({Key? key}) : super(key: key);
+  const AdminDashboardScreen({super.key});
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();

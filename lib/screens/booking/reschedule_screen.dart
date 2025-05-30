@@ -9,14 +9,14 @@ import 'package:intl/intl.dart';
 class RescheduleScreen extends StatefulWidget {
   static const String routeName = '/reschedule';
 
-  const RescheduleScreen({Key? key}) : super(key: key);
+  const RescheduleScreen({super.key});
 
   @override
   State<RescheduleScreen> createState() => _RescheduleScreenState();
 }
 
 class _RescheduleScreenState extends State<RescheduleScreen> {
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
+  final DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
   TimeSlot? _selectedTimeSlot;
   bool _isLoading = false;
   String? _errorMessage;

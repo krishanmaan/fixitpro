@@ -3,7 +3,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fixitpro/constants/app_constants.dart';
-import 'package:fixitpro/widgets/custom_appbar.dart';
 import 'package:provider/provider.dart';
 import 'package:fixitpro/providers/auth_provider.dart';
 

@@ -286,8 +286,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   Navigator.of(context).pop();
                   await _promoteToAdmin(user.id);
                 },
-                child: const Text('Promote'),
                 style: TextButton.styleFrom(foregroundColor: Colors.indigo),
+                child: const Text('Promote'),
               ),
             ],
           ),

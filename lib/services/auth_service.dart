@@ -70,7 +70,7 @@ class AuthService {
       }
     } catch (e) {
       if (e is FirebaseException) {
-        throw e;
+        rethrow;
       }
       throw FirebaseException(
         plugin: 'firebase_auth',
@@ -209,7 +209,7 @@ class AuthService {
       }
 
       if (e is FirebaseException) {
-        throw e;
+        rethrow;
       }
 
       throw FirebaseException(

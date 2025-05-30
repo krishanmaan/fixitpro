@@ -12,10 +12,10 @@ class ServicesByCategoryScreen extends StatelessWidget {
   final String categoryName;
 
   const ServicesByCategoryScreen({
-    Key? key,
+    super.key,
     required this.categoryId,
     required this.categoryName,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

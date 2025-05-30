@@ -12,7 +12,7 @@ class CustomButton extends StatelessWidget {
   final bool isPrimary;
 
   const CustomButton({
-    Key? key,
+    super.key,
     required this.text,
     required this.onPressed,
     this.isLoading = false,
@@ -21,7 +21,7 @@ class CustomButton extends StatelessWidget {
     this.width = double.infinity,
     this.height = 50,
     this.isPrimary = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -85,14 +85,14 @@ class CustomOutlinedButton extends StatelessWidget {
   final double height;
 
   const CustomOutlinedButton({
-    Key? key,
+    super.key,
     required this.text,
     required this.onPressed,
     this.icon,
     this.color,
     this.width = double.infinity,
     this.height = 50,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -144,14 +144,14 @@ class CustomIconButton extends StatelessWidget {
   final String? tooltip;
 
   const CustomIconButton({
-    Key? key,
+    super.key,
     required this.icon,
     required this.onPressed,
     this.color,
     this.backgroundColor,
     this.size = 24.0,
     this.tooltip,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

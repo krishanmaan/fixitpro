@@ -64,8 +64,8 @@ class _BookingScreenState extends State<BookingScreen> {
 
     if (user != null) {
       _nameController.text = user.name;
-      if (user.phone?.isNotEmpty ?? false) {
-        _phoneController.text = user.phone!;
+      if (user.phone.isNotEmpty ?? false) {
+        _phoneController.text = user.phone;
       }
 
       // Pre-select saved address if available

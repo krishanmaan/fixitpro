@@ -13,14 +13,14 @@ class BookingCard extends StatelessWidget {
   final bool isDetailView;
 
   const BookingCard({
-    Key? key,
+    super.key,
     required this.booking,
     required this.onTap,
     this.onCancel,
     this.onReschedule,
     this.onReview,
     this.isDetailView = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

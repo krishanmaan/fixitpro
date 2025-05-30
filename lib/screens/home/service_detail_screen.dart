@@ -9,7 +9,7 @@ import 'package:fixitpro/widgets/custom_button.dart';
 class ServiceDetailScreen extends StatefulWidget {
   static const String routeName = '/service-detail';
 
-  const ServiceDetailScreen({Key? key}) : super(key: key);
+  const ServiceDetailScreen({super.key});
 
   @override
   State<ServiceDetailScreen> createState() => _ServiceDetailScreenState();

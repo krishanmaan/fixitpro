@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fixitpro/constants/app_constants.dart';
-import 'package:fixitpro/widgets/custom_appbar.dart';
 
 class PaymentMethodsScreen extends StatefulWidget {
   static const String routeName = '/payment-methods';

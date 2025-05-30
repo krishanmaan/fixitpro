@@ -23,7 +23,7 @@ class AdminProvider with ChangeNotifier {
   List<service_models.ServiceTypeModel> _serviceTypes = [];
   bool _isLoading = false;
   String? _error;
-  bool _isOfflineMode = false;
+  final bool _isOfflineMode = false;
 
   // Constructor that gets necessary Firebase instances from our service
   AdminProvider()

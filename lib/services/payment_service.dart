@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:fixitpro/models/booking_model.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:async';
 

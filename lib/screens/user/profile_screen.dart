@@ -3,8 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:fixitpro/constants/app_constants.dart';
 import 'package:fixitpro/providers/auth_provider.dart';
 import 'package:fixitpro/screens/auth/login_screen.dart';
-import 'package:fixitpro/screens/admin/admin_dashboard_screen.dart';
-import 'package:fixitpro/widgets/custom_appbar.dart';
 import 'package:fixitpro/widgets/bottom_nav_bar.dart';
 
 class ProfileScreen extends StatelessWidget {

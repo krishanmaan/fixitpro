@@ -190,28 +190,28 @@ class AppTheme {
         ),
       ),
       checkboxTheme: CheckboxThemeData(
-        fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-          if (states.contains(MaterialState.selected)) {
+        fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppConstants.primaryColor;
           }
           return Colors.transparent;
         }),
-        checkColor: MaterialStateProperty.all(Colors.white),
+        checkColor: WidgetStateProperty.all(Colors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         side: const BorderSide(color: AppConstants.lightTextColor),
       ),
       radioTheme: RadioThemeData(
-        fillColor: MaterialStateProperty.all(AppConstants.primaryColor),
+        fillColor: WidgetStateProperty.all(AppConstants.primaryColor),
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppConstants.primaryColor;
           }
           return Colors.grey.shade400;
         }),
-        trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-          if (states.contains(MaterialState.selected)) {
+        trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppConstants.primaryColor.withAlpha(128);
           }
           return Colors.grey.shade300;

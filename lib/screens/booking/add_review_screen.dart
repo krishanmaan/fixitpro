@@ -11,7 +11,7 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 class AddReviewScreen extends StatefulWidget {
   static const String routeName = '/add-review';
 
-  const AddReviewScreen({Key? key}) : super(key: key);
+  const AddReviewScreen({super.key});
 
   @override
   State<AddReviewScreen> createState() => _AddReviewScreenState();

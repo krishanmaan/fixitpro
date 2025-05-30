@@ -17,10 +17,10 @@ class PaymentScreen extends StatefulWidget {
   final double amount;
 
   const PaymentScreen({
-    Key? key,
+    super.key,
     required this.pendingBooking,
     required this.amount,
-  }) : super(key: key);
+  });
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -305,7 +305,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
           _summaryRow(
             'Date',
-            '${DateFormat('EEEE, MMMM d, yyyy').format(widget.pendingBooking.timeSlot.date)}',
+            DateFormat('EEEE, MMMM d, yyyy').format(widget.pendingBooking.timeSlot.date),
           ),
           _summaryRow('Time', widget.pendingBooking.timeSlot.time),
           _summaryRow('Address', widget.pendingBooking.address.address),
